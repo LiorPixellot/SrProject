@@ -22,12 +22,13 @@ class GeneratorTrainer:
             self.generator = tf.keras.models.load_model(self.train_dir+"/weights/gen_e_"+str(start_epoc)+'.h5')
         self.start_epoc = start_epoc + 1
     def fit(self,train_dataset,test_dataset,epochs = 50):
-        for epoch in tqdm(range(self.start_epoc,epochs)):
+        for epoch in tqdm(range(epochs)):
+            real_epch = epoch + self.start_epoc
             for lr,hr in train_dataset.take(-1).cache():
                 self.train_step(lr,hr)
-            print("epoc "+ str(epoch))
-            self.eval(test_dataset,epoch)
-            self.generator.save(self.train_dir+"/weights/gen_e_"+str(epoch)+'.h5')
+            print("epoc "+ str(real_epch))
+            self.eval(test_dataset,real_epch)
+            self.generator.save(self.train_dir+"/weights/gen_e_"+str(real_epch)+'.h5')
 
 
             #calc psnr # todo calc fid
@@ -54,5 +55,5 @@ class GeneratorTrainer:
 
 
 
-generator = GeneratorTrainer("sr_resnet")
-generator.fit(data_loader.train_dataset,data_loader.validation_dataset.take(15).cache())
+generator = GeneratorTrainer("sr_resnet",98)
+generator.fit(data_loader.train_dataset,data_loader.validation_dataset.take(15).cache(),500)
