@@ -25,9 +25,10 @@ class GeneratorTrainer:
             real_epch = epoch + self.start_epoch
             for lr,hr in train_dataset.take(AMOUNT_TO_TAKE).cache():
                 self.train_step(lr,hr)
-            print("epoc "+ str(real_epch))
+
+            self.generator.save(self.train_dir + "/weights/generator/" + str(real_epch) + '.h5')
+
             psnr_vals.append( self.eval(test_dataset,real_epch))
-            self.generator.save(self.train_dir+"/weights/generator/"+str(real_epch)+'.h5')
             print("epoc_" + str(real_epch) + "_psnr_" + str(psnr_vals[-1]))
             plt.plot(psnr_vals)
             plt.savefig(self.train_dir+"/psnr_epoch_"+ str(real_epch)  + ".png")
@@ -77,16 +78,17 @@ class SrGanTrainer:
             real_epch = epoch + self.start_epoch
             for lr,hr in train_dataset.take(AMOUNT_TO_TAKE).cache():
                 self.train_step(lr,hr)
-            psnr_vals.append(self.eval(test_dataset,real_epch))
+
             self.generator.save(self.train_dir+"/weights/generator/"+str(real_epch)+'.h5')
             self.discriminator.save(self.train_dir + "/weights/discriminator/" + str(real_epch) + '.h5')
+            psnr_vals.append(self.eval(test_dataset, real_epch))
             print("epoc_" + str(real_epch) +"_psnr_" +str(psnr_vals[-1]))
             plt.plot(psnr_vals)
             plt.savefig(self.train_dir + "/psnr_epoch_" + str(real_epch) + ".png")
             plt.close()
 
 
-   # @tf.function
+    @tf.function
     def train_step(self, lr_batch, hr_batch):
         dis_loss = self.train_step_dis(hr_batch, lr_batch)
         perceptual_Loss, generative_loss, feature_Loss = self.train_step_gen(lr_batch, hr_batch)
@@ -106,7 +108,7 @@ class SrGanTrainer:
 
 
 
-    #@tf.function
+    @tf.function
     def train_step_dis(self, hr_batch, lr_batch):
         # train the discriminator
         with tf.GradientTape() as tape:
@@ -132,7 +134,7 @@ class SrGanTrainer:
         )
         return dLoss
 
-   # @tf.function
+    @tf.function
     def train_step_gen(self, lr_images, hr_images):
         with tf.GradientTape() as tape:
             # get fake images from the generator
