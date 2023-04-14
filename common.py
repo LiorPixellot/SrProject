@@ -5,48 +5,6 @@ import matplotlib.pyplot as plt
 DIV2K_RGB_MEAN = np.array([0.4488, 0.4371, 0.4040]) * 255
 
 
-count =0
-
-
-def resolve_single(model, lr):
-    return resolve(model, tf.expand_dims(lr, axis=0))[0]
-
-
-def resolve(model, lr_batch):
-    lr_batch = tf.cast(lr_batch, tf.float32)
-    sr_batch = model(lr_batch)
-    sr_batch = tf.clip_by_value(sr_batch, 0, 255)
-    sr_batch = tf.round(sr_batch)
-    sr_batch = tf.cast(sr_batch, tf.uint8)
-    return sr_batch
-
-
-def evaluate(model, dataset):
-    global count  # Accessing the global variable inside the function
-    count += 1
-    psnr_values = []
-    step=0
-    for lr, hr in dataset:
-        step+=1
-        sr = resolve(model, lr)
-        psnr_value = psnr(hr, sr)[0]
-        psnr_values.append(psnr_value)
-        plt.figure(figsize=(9, 5))
-        plt.subplot(3, 3, 1)
-        plt.imshow(np.reshape(lr, (24, 24, 3)))
-        plt.subplot(3, 3, 2)
-        plt.imshow(np.reshape(sr, (96, 96, 3)))
-        plt.subplot(3, 3, 3)
-        plt.imshow(np.reshape(hr, (96, 96, 3)))
-        plt.savefig("temp/count_" + str(count)+ "_step_" + str(step)+"_psnr_"+str(psnr_value.numpy())+".png")
-        plt.close()
-    return tf.reduce_mean(psnr_values)
-
-
-# ---------------------------------------
-#  Normalization
-# ---------------------------------------
-
 
 def normalize(x, rgb_mean=DIV2K_RGB_MEAN):
     return (x - rgb_mean) / 127.5
@@ -89,3 +47,4 @@ def pixel_shuffle(scale):
     return lambda x: tf.nn.depth_to_space(x, scale)
 
 
+TRAIN_DIR = "sr_resnet"

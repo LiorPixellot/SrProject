@@ -2,7 +2,7 @@ import  tensorflow as tf
 import pathlib
 import os
 class MyDataLoader:
-    def __init__(self, image_dir, hr_size=96, downsample_factor=4, batch_size=1, val_split=0.1):
+    def __init__(self, image_dir, hr_size=96, downsample_factor=4, batch_size=1, val_split=0.05):
         self.image_dir = image_dir
         self.hr_size = hr_size
         self.downsample_factor = downsample_factor
@@ -10,7 +10,7 @@ class MyDataLoader:
         self.batch_size = batch_size
         self.val_split = val_split
 
-        self._download_dataset()
+       # self._download_dataset()
         self._load_datasets()
 
     def _download_dataset(self):

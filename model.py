@@ -1,5 +1,11 @@
+import os
+import re
+
+from keras.applications import VGG19
 from keras.layers import Add, BatchNormalization, Conv2D, Dense, Flatten, Input, LeakyReLU, PReLU, Lambda
 from keras.models import Model
+import tensorflow as tf
+import common
 
 
 from common import pixel_shuffle, normalize_01, normalize_m11, denormalize_m11
@@ -76,3 +82,45 @@ def discriminator(num_filters=64,hr_size=96):
 
     return Model(x_in, x)
 
+
+
+def load_last_weights(dir_path):
+    file_list = os.listdir(dir_path)
+
+    regex = r'^(\d+)\.'
+
+    numbers = []
+    for filename in file_list:
+        match = re.match(regex, filename)
+        if match:
+            number = int(match.group(1))
+            numbers.append(number)
+    max_number = max(numbers)
+    load_weight = os.path.join(dir_path, str(max_number))+'.h5'
+    print("loading weights "+ load_weight)
+    return tf.keras.models.load_model(load_weight) , max_number
+
+
+
+def load_generator(dir):
+    try:
+        model , epoch =  load_last_weights(dir)
+    except Exception as e:
+        epoch = -1
+        model =  sr_resnet()
+    print("starting generator from epoch " +str(epoch))
+    return model, epoch
+
+def load_discriminator(dir):
+    try:
+        model, epoch = load_last_weights(dir)
+    except Exception as e:
+        epoch = -1
+        model = sr_resnet()
+    print("starting discriminator from epoch " + str(epoch))
+    return model, epoch
+
+
+def build_vgg():
+    vgg = VGG19(weights="imagenet", include_top=False, input_shape=(96, 96, 3))
+    return Model(inputs=vgg.inputs, outputs=vgg.layers[20].output)
