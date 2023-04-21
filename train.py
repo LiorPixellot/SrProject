@@ -10,7 +10,7 @@ from keras.applications.vgg19 import preprocess_input
 import model
 
 #TODO LB
-AMOUNT_TO_TAKE = -1
+AMOUNT_TO_TAKE_TO_TRAIN = -1
 
 class GeneratorTrainer:
     def __init__(self,generator,train_dir,start_epoch = -1,optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4,beta_1=0.09),loss = tf.keras.losses.MeanSquaredError()):
@@ -19,29 +19,34 @@ class GeneratorTrainer:
         self.optimizer = optimizer
         self.generator = generator
         self.start_epoch = start_epoch + 1
-    def fit(self,train_dataset,test_dataset,epochs = 50):
+    def fit(self,train_dataset,test_dataset,display_dataset,epochs = 50):
         psnr_vals = []
         for epoch in tqdm(range(epochs)):
             real_epch = epoch + self.start_epoch
-            for lr,hr in train_dataset.take(AMOUNT_TO_TAKE).cache():
+            for lr,hr in train_dataset.take(AMOUNT_TO_TAKE_TO_TRAIN).cache():
                 self.train_step(lr,hr)
 
             self.generator.save(self.train_dir + "/weights/generator/" + str(real_epch) + '.h5')
 
             psnr_vals.append( self.eval(test_dataset,real_epch))
+            self.display(display_dataset, real_epch)
             print("epoc_" + str(real_epch) + "_psnr_" + str(psnr_vals[-1]))
             plt.plot(psnr_vals)
             plt.savefig(self.train_dir+"/psnr_epoch_"+ str(real_epch)  + ".png")
             plt.close()
 
     def eval(self,test_dataset,epoch):
-        cont = 0
         psnr_vals = []
+        for lr, hr in test_dataset:
+            psnr_vals.append(common.psnr(self.generator(lr),hr))
+        return np.mean(psnr_vals)
+
+
+    def display(self,test_dataset,epoch):
+        cont = 0
         for lr, hr in test_dataset:
             cont+=1
             display_handler.display_hr_lr(self.train_dir,self.generator,hr,lr,epoch,cont)
-            psnr_vals.append(common.psnr(self.generator(lr), hr))
-        return np.mean(psnr_vals)
 
 
 
@@ -72,20 +77,27 @@ class SrGanTrainer:
 
 
 
-    def fit(self,train_dataset,test_dataset,epochs = 50):
+    def fit(self,train_dataset,test_dataset,display_dataset,epochs = 50):
         psnr_vals = []
+        count =0
         for epoch in tqdm(range(epochs)):
             real_epch = epoch + self.start_epoch
-            for lr,hr in train_dataset.take(AMOUNT_TO_TAKE).cache():
+            for lr,hr in  tqdm(train_dataset.take(AMOUNT_TO_TAKE_TO_TRAIN).cache()):
                 self.train_step(lr,hr)
-
+                count+=1
+                if(count %1000 == 0):
+                    print("eval")
+                    psnr_vals.append(self.eval(test_dataset, real_epch))
+                    print("display")
+                    self.display(display_dataset, real_epch)
+                    print("epoc_" + str(real_epch) + "_psnr_" + str(psnr_vals[-1]))
+                    plt.plot(psnr_vals)
+                    plt.savefig(self.train_dir + "/psnr_epoch_" + str(real_epch) + ".png")
+                    plt.close()
+            print("save")
             self.generator.save(self.train_dir+"/weights/generator/"+str(real_epch)+'.h5')
             self.discriminator.save(self.train_dir + "/weights/discriminator/" + str(real_epch) + '.h5')
-            psnr_vals.append(self.eval(test_dataset, real_epch))
-            print("epoc_" + str(real_epch) +"_psnr_" +str(psnr_vals[-1]))
-            plt.plot(psnr_vals)
-            plt.savefig(self.train_dir + "/psnr_epoch_" + str(real_epch) + ".png")
-            plt.close()
+
 
 
     @tf.function
@@ -96,15 +108,17 @@ class SrGanTrainer:
          "generative_loss": generative_loss, "feature_Loss": feature_Loss}
 
     def eval(self,test_dataset,epoch):
-        cont = 0
         psnr_vals = []
-
-        for lr, hr in test_dataset:
-            cont+=1
-            display_handler.display_hr_lr(self.train_dir,self.generator,hr,lr,epoch,cont)
+        for lr, hr in tqdm(test_dataset):
             psnr_vals.append(common.psnr(self.generator(lr),hr))
         return np.mean(psnr_vals)
 
+
+    def display(self,test_dataset,epoch):
+        cont = 0
+        for lr, hr in tqdm(test_dataset):
+            cont+=1
+            display_handler.display_hr_lr(self.train_dir,self.generator,hr,lr,epoch,cont)
 
 
 
