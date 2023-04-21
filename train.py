@@ -9,9 +9,7 @@ from keras.applications.vgg19 import preprocess_input
 
 import model
 
-#TODO LB
-AMOUNT_TO_TAKE_TO_TRAIN =3
-SAVE_PROGRESS_EVERY_N_FRAMES = 1
+
 
 class GeneratorTrainer:
     def __init__(self,generator,train_dir,start_epoch = -1,optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4,beta_1=0.09),loss = tf.keras.losses.MeanSquaredError()):
@@ -67,7 +65,7 @@ class GeneratorTrainer:
 
 
 class SrGanTrainer:
-    def __init__(self,generator,discriminator,train_dir,start_epoch = -1,optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4,beta_1=0.09),loss = tf.keras.losses.MeanSquaredError()):
+    def __init__(self,generator,discriminator,train_dir,start_epoch = -1, demo_mode = False,optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4,beta_1=0.09),loss = tf.keras.losses.MeanSquaredError()):
 
 
         self.train_dir = train_dir
@@ -77,28 +75,40 @@ class SrGanTrainer:
         self.discriminator = discriminator
         self.start_epoch = start_epoch + 1
         self.vgg = model.build_vgg()
-        self._step_count = 0
         self._psnr_vals = []
         self._real_epch = 0
+        self._settings = self._get_sttings_according_to_mode(demo_mode)
+
+    def _get_sttings_according_to_mode(self, demo_mode):
+        # Settings for a small dataset
+        demo_settings = {
+            'steps_to_save_progress': 1
+        }
+        # Settings for a large dataset
+        normal_mode = {
+             'steps_to_save_progress': 1000
+        }
+        # Choose between small or big dataset settings based on demo_mode
+        settings = demo_settings if demo_mode else normal_mode
+        return settings
 
 
-    def fit(self,train_dataset,test_dataset,display_dataset,epochs = 50):
+    def fit(self,datasets,epochs = 50):
         for epoch in tqdm(range(epochs)):
             self._real_epch = epoch + self.start_epoch
-            for lr,hr in  tqdm(train_dataset.take(AMOUNT_TO_TAKE_TO_TRAIN).cache()):
+            for step_count,(lr,hr) in tqdm(enumerate(datasets.train_dataset)):
                 self.train_step(lr,hr)
-                self.save_progress(display_dataset, test_dataset)
+                self.save_progress(datasets,step_count)
             self.save_weights()
 
     def save_weights(self):
         self.generator.save(self.train_dir + "/weights/generator/" + str(self._real_epch) + '.h5')
         self.discriminator.save(self.train_dir + "/weights/discriminator/" + str(self._real_epch) + '.h5')
 
-    def save_progress(self, display_dataset, test_dataset):
-        self._step_count += 1
-        if (self._step_count  % SAVE_PROGRESS_EVERY_N_FRAMES == 0):
-            self.eval(test_dataset)
-            self.save_display_examples(display_dataset)
+    def save_progress(self,datasets,step):
+        if (step  % self._settings['steps_to_save_progress'] == 0):
+            self.eval(datasets.test_dataset,step)
+            self.save_display_examples(datasets.display_dataset)
 
 
     @tf.function
@@ -108,22 +118,24 @@ class SrGanTrainer:
         return {"dis_loss": dis_loss, "perceptual_Loss": perceptual_Loss,
          "generative_loss": generative_loss, "feature_Loss": feature_Loss}
 
-    def eval(self,test_dataset):
+    def calc_avg_psnr_curr_step(self,test_dataset):
         psnr_vals = []
         for lr, hr in tqdm(test_dataset):
-            psnr_vals.append(common.psnr(self.generator(lr),hr))
-
-        plt.plot(psnr_vals)
-        plt.savefig(self.train_dir + "/psnr_epoch_" + str(self._real_epch) + ".png")
-        plt.close()
+            psnr_vals.append(tf.image.psnr(self.generator(lr),hr, max_val=255))
         return np.mean(psnr_vals)
+
+    def eval(self,test_dataset,step):
+        psnr_vals = []
+        psnr_vals.append(self.calc_avg_psnr_curr_step(test_dataset))
+        plt.plot(psnr_vals)
+        plt.savefig(self.train_dir + "/psnr_epoch_" + str(self._real_epch) + "_step_"+str(step)+ ".png")
+        plt.close()
+
 
 
     def save_display_examples(self,test_dataset):
-        cont = 0
-        for lr, hr in tqdm(test_dataset):
-            cont+=1
-            display_handler.display_hr_lr(self.train_dir,self.generator,hr,lr,self._real_epch,cont)
+        for idx, (lr, hr) in tqdm(enumerate(test_dataset)):
+            display_handler.display_hr_lr(self.train_dir,self.generator,hr,lr,self._real_epch,idx)
 
 
 
