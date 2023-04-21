@@ -10,7 +10,8 @@ from keras.applications.vgg19 import preprocess_input
 import model
 
 #TODO LB
-AMOUNT_TO_TAKE_TO_TRAIN = -1
+AMOUNT_TO_TAKE_TO_TRAIN =3
+SAVE_PROGRESS_EVERY_N_FRAMES = 1
 
 class GeneratorTrainer:
     def __init__(self,generator,train_dir,start_epoch = -1,optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4,beta_1=0.09),loss = tf.keras.losses.MeanSquaredError()):
@@ -67,6 +68,8 @@ class GeneratorTrainer:
 
 class SrGanTrainer:
     def __init__(self,generator,discriminator,train_dir,start_epoch = -1,optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4,beta_1=0.09),loss = tf.keras.losses.MeanSquaredError()):
+
+
         self.train_dir = train_dir
         self.loss = loss
         self.optimizer = optimizer
@@ -74,30 +77,28 @@ class SrGanTrainer:
         self.discriminator = discriminator
         self.start_epoch = start_epoch + 1
         self.vgg = model.build_vgg()
-
+        self._step_count = 0
+        self._psnr_vals = []
+        self._real_epch = 0
 
 
     def fit(self,train_dataset,test_dataset,display_dataset,epochs = 50):
-        psnr_vals = []
-        count =0
         for epoch in tqdm(range(epochs)):
-            real_epch = epoch + self.start_epoch
+            self._real_epch = epoch + self.start_epoch
             for lr,hr in  tqdm(train_dataset.take(AMOUNT_TO_TAKE_TO_TRAIN).cache()):
                 self.train_step(lr,hr)
-                count+=1
-                if(count %1000 == 0):
-                    print("eval")
-                    psnr_vals.append(self.eval(test_dataset, real_epch))
-                    print("display")
-                    self.display(display_dataset, real_epch)
-                    print("epoc_" + str(real_epch) + "_psnr_" + str(psnr_vals[-1]))
-                    plt.plot(psnr_vals)
-                    plt.savefig(self.train_dir + "/psnr_epoch_" + str(real_epch) + ".png")
-                    plt.close()
-            print("save")
-            self.generator.save(self.train_dir+"/weights/generator/"+str(real_epch)+'.h5')
-            self.discriminator.save(self.train_dir + "/weights/discriminator/" + str(real_epch) + '.h5')
+                self.save_progress(display_dataset, test_dataset)
+            self.save_weights()
 
+    def save_weights(self):
+        self.generator.save(self.train_dir + "/weights/generator/" + str(self._real_epch) + '.h5')
+        self.discriminator.save(self.train_dir + "/weights/discriminator/" + str(self._real_epch) + '.h5')
+
+    def save_progress(self, display_dataset, test_dataset):
+        self._step_count += 1
+        if (self._step_count  % SAVE_PROGRESS_EVERY_N_FRAMES == 0):
+            self.eval(test_dataset)
+            self.save_display_examples(display_dataset)
 
 
     @tf.function
@@ -107,18 +108,22 @@ class SrGanTrainer:
         return {"dis_loss": dis_loss, "perceptual_Loss": perceptual_Loss,
          "generative_loss": generative_loss, "feature_Loss": feature_Loss}
 
-    def eval(self,test_dataset,epoch):
+    def eval(self,test_dataset):
         psnr_vals = []
         for lr, hr in tqdm(test_dataset):
             psnr_vals.append(common.psnr(self.generator(lr),hr))
+
+        plt.plot(psnr_vals)
+        plt.savefig(self.train_dir + "/psnr_epoch_" + str(self._real_epch) + ".png")
+        plt.close()
         return np.mean(psnr_vals)
 
 
-    def display(self,test_dataset,epoch):
+    def save_display_examples(self,test_dataset):
         cont = 0
         for lr, hr in tqdm(test_dataset):
             cont+=1
-            display_handler.display_hr_lr(self.train_dir,self.generator,hr,lr,epoch,cont)
+            display_handler.display_hr_lr(self.train_dir,self.generator,hr,lr,self._real_epch,cont)
 
 
 
@@ -178,3 +183,4 @@ class SrGanTrainer:
         self.optimizer.apply_gradients(zip(grads, self.generator.trainable_variables))
 
         return perceptual_Loss, generative_loss, feature_Loss
+

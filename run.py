@@ -7,7 +7,7 @@ image_url = 'img_align_celeba'
 
 #TODO LB
 display_dataset_size = 30
-test_dataset_size = -1
+test_dataset_size = 10
 sr_resnet_train_epoch = 5
 
 data_loader = DataLoader.MyDataLoader(image_url)
