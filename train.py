@@ -56,7 +56,7 @@ class AbsTrainer(ABC):
 
     def _get_settings_according_to_mode(self, demo_mode: bool) -> dict:
         demo_settings = {'steps_to_save_progress': 1}
-        normal_mode = {'steps_to_save_progress': 10000}
+        normal_mode = {'steps_to_save_progress': 100}
         settings = demo_settings if demo_mode else normal_mode
         return settings
 
@@ -81,7 +81,8 @@ class AbsTrainer(ABC):
 
 
     def save_progress(self,datasets,step: int):
-        if (step  % self._settings['steps_to_save_progress'] == 0):
+        modulo = step  % self._settings['steps_to_save_progress']
+        if (modulo == 0 and step > 0):
             self.eval(datasets.test_dataset,step)
             self.save_display_examples(datasets.display_dataset,step)
 
@@ -96,18 +97,15 @@ class AbsTrainer(ABC):
 
     def _calculate_fid_cur_step(self,test_dataset):
         print("fid calc")
-        real_images_resized = []
-        generated_images_resized = []
 
-        for lr, hr in test_dataset:
-            real_images_resized.append(preprocess_input_inception(tf.image.resize(hr, (299, 299))))
-            generated_images_resized.append(preprocess_input_inception(tf.image.resize(self.generator(lr), (299, 299))))
+        real_features = []
+        gen_features = []
+        for lr, hr in tqdm(test_dataset):
+            real_image_resized = preprocess_input_inception(tf.image.resize(hr, (299, 299)))
+            generated_image_resized = preprocess_input_inception(tf.image.resize(self.generator(lr), (299, 299)))
 
-        real_images_resized = np.squeeze(np.array(real_images_resized))
-        generated_images_resized = np.squeeze(np.array(generated_images_resized))
-
-        real_features = self.inception_model(real_images_resized)
-        gen_features = self.inception_model(generated_images_resized)
+            real_features.append(self.inception_model(real_image_resized))
+            gen_features.append(self.inception_model(generated_image_resized))
 
         # calculate mean and covariance statistics
         mu1, sigma1 = np.mean(real_features, axis=0), np.cov(real_features, rowvar=False)
@@ -123,8 +121,8 @@ class AbsTrainer(ABC):
 
 
     def eval(self,test_dataset, step: int):
-        # self._fid_vals.append(self._calculate_fid_cur_step(test_dataset))
-        # display_handler.plot_graph(self.fid_plots_path, step, self._real_epch, self._fid_vals)
+        self._fid_vals.append(self._calculate_fid_cur_step(test_dataset))
+        display_handler.plot_graph(self.fid_plots_path, step, self._real_epch, self._fid_vals)
         self._psnr_vals.append(self.calc_avg_psnr_curr_step(test_dataset))
         display_handler.plot_graph(self.psnr_plots_path,step,self._real_epch,self._psnr_vals)
 
@@ -146,7 +144,7 @@ class AbsTrainer(ABC):
         pass
 
     def save_display_examples(self,test_dataset,step):
-        for idx, (lr, hr) in tqdm(enumerate(test_dataset)):
+        for idx, (lr, hr) in enumerate(test_dataset):
             display_handler.display_hr_lr(self.train_dir,self.generator,hr,lr,self._real_epch,idx,step)
 
 

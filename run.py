@@ -4,8 +4,10 @@ import DataLoader
 import model
 
 image_url = 'img_align_celeba'
-
 demo_mode = False
+
+#image_url = 'small'
+#demo_mode = True
 
 datasets = DataLoader.MyDataLoader(image_url,demo_mode)
 
