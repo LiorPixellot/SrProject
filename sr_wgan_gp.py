@@ -25,17 +25,16 @@ class SrWganGp(train.AbsTrainer):
         self.vgg = model.build_vgg()
 
     def train_step(self, lr_batch, hr_batch):
-        dis_loss = self.train_step_dis(hr_batch, lr_batch)
-        perceptual_Loss, generative_loss, feature_Loss = self.train_step_gen(lr_batch, hr_batch)
-        return {"dis_loss": dis_loss, "perceptual_Loss": perceptual_Loss,
-                "generative_loss": generative_loss, "feature_Loss": feature_Loss}
+         self.train_step_dis(hr_batch, lr_batch)
+         self.train_step_gen(lr_batch, hr_batch)
+
 
     def gradient_penalty(self, real, fake):
         batch_size = real.shape[0]
         epsilon = tf.random.uniform(shape=[batch_size, 1, 1, 1], minval=0, maxval=1)
         interpolated_images = epsilon * real + (1 - epsilon) * fake
         with tf.GradientTape() as gp_tape:
-            gp_tape.watch(interpolated_images)
+            gp_tape.watch(interpolated_images) # Tell the tape to watch the `interpolated` tensor
             validity = self.discriminator(interpolated_images)
         gradients = gp_tape.gradient(validity, interpolated_images)
         gradients_norm = tf.sqrt(tf.reduce_sum(tf.square(gradients), axis=[1, 2, 3]))
@@ -56,7 +55,7 @@ class SrWganGp(train.AbsTrainer):
 
         grads = tape.gradient(d_loss, self.discriminator.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.discriminator.trainable_variables))
-        return d_loss
+
 
     @tf.function
     def train_step_gen(self, lr_images, hr_images):
@@ -74,4 +73,4 @@ class SrWganGp(train.AbsTrainer):
         grads = tape.gradient(perceptual_Loss, self.generator.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.generator.trainable_variables))
 
-        return perceptual_Loss, generative_loss, feature_Loss
+

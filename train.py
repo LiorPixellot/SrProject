@@ -32,6 +32,7 @@ class AbsTrainer(ABC):
         self.start_epoch = start_epoch + 1
         self._psnr_vals = []
         self._fid_vals = []
+        self._ssim_vals = []
         self._real_epch = 0
         self._settings = self._get_settings_according_to_mode(demo_mode)
         self.inception_model = self._build_inception_model()
@@ -41,10 +42,12 @@ class AbsTrainer(ABC):
         self.psnr_plots_path = self.train_dir / "psnr_plots"
         self.fid_plots_path = self.train_dir / "fid_plots"
         self.images_path = self.train_dir / "images"
+        self.ssim_plots_path = self.train_dir / "ssim_plots"
 
         self.psnr_plots_path.mkdir(parents=True, exist_ok=True)
         self.fid_plots_path.mkdir(parents=True, exist_ok=True)
         self.images_path.mkdir(parents=True, exist_ok=True)
+        self.ssim_plots_path.mkdir(parents=True, exist_ok=True)
 
 
     def _build_inception_model(self):
@@ -55,7 +58,7 @@ class AbsTrainer(ABC):
 
     def _get_settings_according_to_mode(self, demo_mode: bool) -> dict:
         demo_settings = {'steps_to_save_progress': 1}
-        normal_mode = {'steps_to_save_progress': 100}
+        normal_mode = {'steps_to_save_progress': 100000}
         settings = demo_settings if demo_mode else normal_mode
         return settings
 
@@ -87,16 +90,49 @@ class AbsTrainer(ABC):
 
 
 
-    def calc_avg_psnr_curr_step(self,test_dataset):
-        print("psnr calc")
+    def _calculate_fid_ssim_psnr_cur_step(self,test_dataset):
+        print("calc")
+        real_features = []
+        gen_features = []
         psnr_vals = []
+        ssim_vals = []
         for lr, hr in test_dataset:
-            psnr_vals.append(tf.image.psnr(self.generator(lr),hr, max_val=255))
-        return np.mean(psnr_vals)
+            fake_hr = self.generator(lr)
+            real_image_resized = preprocess_input_inception(tf.image.resize(hr, (299, 299)))
+            generated_image_resized = preprocess_input_inception(tf.image.resize(fake_hr, (299, 299)))
+            psnr_vals.append(tf.image.psnr(hr, fake_hr, max_val=255))
+            ssim_vals.append(tf.image.ssim(hr, fake_hr, max_val=1.0))
+            real_features.append(np.squeeze(self.inception_model(real_image_resized)))
+            gen_features.append(np.squeeze(self.inception_model(generated_image_resized)))
+
+        # calculate mean and covariance statistics
+        mu1, sigma1 = np.mean(real_features, axis=0), np.cov(real_features, rowvar=False)
+        mu2, sigma2 = np.mean(gen_features, axis=0), np.cov(gen_features, rowvar=False)
+
+        ssdiff = np.sum((mu1 - mu2) ** 2.0)
+        covmean = sqrtm(np.dot(sigma1, sigma2))
+        if np.iscomplexobj(covmean):
+            covmean = covmean.real
+
+        fid = ssdiff + np.trace(sigma1 + sigma2 - 2.0 * covmean)
+        self._fid_vals.append(fid)
+        self._psnr_vals.append(np.mean(psnr_vals))
+        self._ssim_vals.append(np.mean(ssim_vals))
+
+    def calc_avg_psnr_ssim_curr_step(self,test_dataset):
+        print("calc_avg_psnr_ssim_curr_step")
+        psnr_vals = []
+        ssim_vals = []
+        for lr, hr in test_dataset:
+            fake_hr = self.generator(lr)
+            psnr_vals.append(tf.image.psnr(hr,fake_hr, max_val=255))
+            ssim_vals.append(tf.image.ssim(hr, fake_hr, max_val=1.0))
+        self._psnr_vals.append(np.mean(psnr_vals))
+        self._ssim_vals.append(np.mean(ssim_vals))
+
 
     def _calculate_fid_cur_step(self,test_dataset):
-        print("fid calc")
-
+        print("_calculate_fid_cur_step")
         real_features = []
         gen_features = []
         for lr, hr in test_dataset:
@@ -116,14 +152,14 @@ class AbsTrainer(ABC):
             covmean = covmean.real
 
         fid = ssdiff + np.trace(sigma1 + sigma2 - 2.0 * covmean)
-        return fid
+        self._fid_vals.append(fid)
 
 
     def eval(self,test_dataset, step: int):
-        self._fid_vals.append(self._calculate_fid_cur_step(test_dataset))
+        self._calculate_fid_ssim_psnr_cur_step(test_dataset)
+        display_handler.plot_graph(self.psnr_plots_path, step, self._real_epch, self._psnr_vals)
         display_handler.plot_graph(self.fid_plots_path, step, self._real_epch, self._fid_vals)
-        self._psnr_vals.append(self.calc_avg_psnr_curr_step(test_dataset))
-        display_handler.plot_graph(self.psnr_plots_path,step,self._real_epch,self._psnr_vals)
+        display_handler.plot_graph(self.ssim_plots_path, step, self._real_epch, self._ssim_vals)
 
 
 
