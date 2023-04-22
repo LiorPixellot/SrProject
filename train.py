@@ -99,7 +99,7 @@ class AbsTrainer(ABC):
 
         real_features = []
         gen_features = []
-        for lr, hr in tqdm(test_dataset):
+        for lr, hr in test_dataset:
             real_image_resized = preprocess_input_inception(tf.image.resize(hr, (299, 299)))
             generated_image_resized = preprocess_input_inception(tf.image.resize(self.generator(lr), (299, 299)))
 

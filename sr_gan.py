@@ -33,15 +33,12 @@ class SrGan(train.AbsTrainer):
             dLoss = bce(combined_predicted_labels, combined_real_labels)
 
         # compute the gradients
-        grads = tape.gradient(dLoss,
-                              self.discriminator.trainable_variables)
+        grads = tape.gradient(dLoss,self.discriminator.trainable_variables)
 
         # optimize the discriminator weights according to the
         # gradients computed
 
-        self.optimizer.apply_gradients(
-            zip(grads, self.discriminator.trainable_variables)
-        )
+        self.optimizer.apply_gradients(zip(grads, self.discriminator.trainable_variables) )
         return dLoss
 
     @tf.function
