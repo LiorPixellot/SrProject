@@ -1,6 +1,12 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
+
+from pathlib import Path
+from typing import List
+
+
+
 def display_images(dataset, num_images=5):
     # Create iterators for the HR and LR datasets
 
@@ -20,7 +26,7 @@ def display_images(dataset, num_images=5):
     plt.show()
 
 
-def display_hr_lr(data_dir,generator,hr,lr,epoch,image_num):
+def display_hr_lr(data_dir,generator,hr,lr,epoch,image_num,step):
     fig, axs = plt.subplots(1, 3, figsize=(9, 9))
     axs[0].imshow(tf.cast(tf.squeeze(hr,axis=0), tf.uint8))
     axs[0].set_title('HR Image')
@@ -31,8 +37,8 @@ def display_hr_lr(data_dir,generator,hr,lr,epoch,image_num):
     axs[0].axis('off')
     axs[1].axis('off')
     axs[2].axis('off')
-    template = '{}/images/image_num_{}_Epoch_{}.png'
-    plt.savefig(template.format(data_dir,image_num, epoch))
+    template = '{}/images/image_num_{}_Epoch_{}_step_{}.png'
+    plt.savefig(template.format(data_dir,image_num, epoch,step))
     plt.close()
 
 def show_progress(dataset,generator,epoch,feature_Loss,num_images=5):
@@ -57,3 +63,8 @@ def show_progress(dataset,generator,epoch,feature_Loss,num_images=5):
 
     template = 'data/images/Epoch_{}_feature_Loss_{}.png'
     plt.savefig(template.format(epoch, feature_Loss))
+
+def plot_graph(path: Path, step: int, epoch: int, vals: List[float]) -> None:
+    plt.plot(vals)
+    plt.savefig( path/ f"epoch_{epoch}_step_{step}.png")
+    plt.close()
