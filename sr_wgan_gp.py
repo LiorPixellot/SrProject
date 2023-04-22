@@ -1,50 +1,77 @@
+"""
+In this modified version of the `SrGan` class, I made the following changes:
+
+1. Added the `gradient_penalty` method to compute the gradient penalty for the Wasserstein GAN with gradient penalty loss.
+
+2. Modified the `train_step_dis` method to replace the binary cross-entropy loss with the Wasserstein loss, which is computed as the difference between the means of real and fake scores. Also added the gradient penalty term to the discriminator loss.
+
+3. Changed the `train_step_gen` method to replace the binary cross-entropy loss with the Wasserstein loss for the generative loss. The generative loss is now calculated as the negation of the mean of the discriminator's scores for the generated images.
+
+With these changes, the `SrGan` class now uses the Wasserstein GAN with gradient penalty loss for training the generator and discriminator. The rest of the class remains unchanged, so the perceptual loss and feature loss calculations are still based on the VGG19 model as in the original implementation.
+"""
+
+
+
 import train
+import model
 import tensorflow as tf
+from keras.applications.vgg19 import preprocess_input as preprocess_input_vgg
 
 class SrWganGp(train.AbsTrainer):
+
     def __init__(self, generator, discriminator, train_dir, start_epoch=-1, demo_mode=False,
                  optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4, beta_1=0.09)):
         super().__init__(generator, discriminator, train_dir, start_epoch, demo_mode, optimizer)
-        self.gp_lambda = 10  # The recommended value is 10
+        self.vgg = model.build_vgg()
 
     def train_step(self, lr_batch, hr_batch):
-        self.train_step_dis(hr_batch, lr_batch)
-        self.train_step_gen(lr_batch, hr_batch)
+        dis_loss = self.train_step_dis(hr_batch, lr_batch)
+        perceptual_Loss, generative_loss, feature_Loss = self.train_step_gen(lr_batch, hr_batch)
+        return {"dis_loss": dis_loss, "perceptual_Loss": perceptual_Loss,
+                "generative_loss": generative_loss, "feature_Loss": feature_Loss}
 
-    @tf.function
-    def train_step_gen(self, lr_images, hr_images):
-        with tf.GradientTape() as tape:
-            # Get fake images from the generator
-            fake_images = self.generator(lr_images)
-
-            # Get the prediction from the discriminator
-            predictions = self.discriminator(fake_images)
-
-            loss = -tf.reduce_mean(predictions)
-
-        grads = tape.gradient(loss, self.generator.trainable_variables)
-        self.optimizer.apply_gradients(zip(grads, self.generator.trainable_variables))
+    def gradient_penalty(self, real, fake):
+        batch_size = real.shape[0]
+        epsilon = tf.random.uniform(shape=[batch_size, 1, 1, 1], minval=0, maxval=1)
+        interpolated_images = epsilon * real + (1 - epsilon) * fake
+        with tf.GradientTape() as gp_tape:
+            gp_tape.watch(interpolated_images)
+            validity = self.discriminator(interpolated_images)
+        gradients = gp_tape.gradient(validity, interpolated_images)
+        gradients_norm = tf.sqrt(tf.reduce_sum(tf.square(gradients), axis=[1, 2, 3]))
+        gp = tf.reduce_mean((gradients_norm - 1.0)**2)
+        return gp
 
     @tf.function
     def train_step_dis(self, hr_batch, lr_batch):
         with tf.GradientTape() as tape:
             fake_images = self.generator(lr_batch)
+            real_validity = self.discriminator(hr_batch)
+            fake_validity = self.discriminator(fake_images)
 
-            predictions_real = self.discriminator(hr_batch)
-            predictions_fake = self.discriminator(fake_images)
+            d_loss_real = tf.reduce_mean(real_validity)
+            d_loss_fake = tf.reduce_mean(fake_validity)
+            gp = self.gradient_penalty(hr_batch, fake_images)
+            d_loss = d_loss_real -d_loss_fake + 10 * gp
 
-            alpha = tf.random.uniform(shape=[hr_batch.shape[0], 1, 1, 1], minval=0, maxval=1)
-            inter_sample = alpha * hr_batch + (1 - alpha) * fake_images
-
-            with tf.GradientTape() as tape_gp:
-                tape_gp.watch(inter_sample)
-                inter_score = self.discriminator(inter_sample)
-
-            gp_gradients = tape_gp.gradient(inter_score, inter_sample)
-            gp_gradients_norm = tf.sqrt(tf.reduce_sum(tf.square(gp_gradients), axis=[1, 2, 3]))
-            gp = tf.reduce_mean((gp_gradients_norm - 1.0) ** 2)
-
-            loss = tf.reduce_mean(predictions_fake) - tf.reduce_mean(predictions_real) + gp * self.gp_lambda
-
-        grads = tape.gradient(loss, self.discriminator.trainable_variables)
+        grads = tape.gradient(d_loss, self.discriminator.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.discriminator.trainable_variables))
+        return d_loss
+
+    @tf.function
+    def train_step_gen(self, lr_images, hr_images):
+        with tf.GradientTape() as tape:
+            fakeImages = self.generator(lr_images)
+            predictions = self.discriminator(fakeImages)
+            generative_loss = -tf.reduce_mean(predictions)
+
+            sr_vgg = self.vgg(preprocess_input_vgg(fakeImages))
+            hr_vgg = self.vgg(preprocess_input_vgg(hr_images))
+            mse = tf.keras.losses.MeanSquaredError()
+            feature_Loss = mse(hr_vgg, sr_vgg)
+            perceptual_Loss = generative_loss * 1e-3 + feature_Loss
+
+        grads = tape.gradient(perceptual_Loss, self.generator.trainable_variables)
+        self.optimizer.apply_gradients(zip(grads, self.generator.trainable_variables))
+
+        return perceptual_Loss, generative_loss, feature_Loss
