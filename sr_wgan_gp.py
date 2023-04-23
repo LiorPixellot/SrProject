@@ -24,9 +24,6 @@ class SrWganGp(train.AbsTrainer):
         super().__init__(generator, discriminator, train_dir, start_epoch, demo_mode, optimizer)
         self.vgg = model.build_vgg()
 
-    def train_step(self, lr_batch, hr_batch):
-         self.train_step_dis(hr_batch, lr_batch)
-         self.train_step_gen(lr_batch, hr_batch)
 
 
     def gradient_penalty(self, real, fake):
@@ -56,6 +53,8 @@ class SrWganGp(train.AbsTrainer):
         grads = tape.gradient(d_loss, self.discriminator.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.discriminator.trainable_variables))
 
+        self.dis_loss_metric.update_state(d_loss)
+
 
     @tf.function
     def train_step_gen(self, lr_images, hr_images):
@@ -72,5 +71,9 @@ class SrWganGp(train.AbsTrainer):
 
         grads = tape.gradient(perceptual_Loss, self.generator.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.generator.trainable_variables))
+
+        self.perceptual_loss_metric.update_state(perceptual_Loss)
+        self.generative_loss_metric.update_state(generative_loss)
+        self.feature_loss_metric.update_state(feature_Loss)
 
 

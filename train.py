@@ -25,6 +25,7 @@ class AbsTrainer(ABC):
                  demo_mode: bool = False,
                  optimizer: tf.keras.optimizers.Optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4, beta_1=0.09)):
 
+        self.real_step = 0
         self.train_dir = pathlib.Path(train_dir)
         self.optimizer = optimizer
         self.generator = generator
@@ -37,6 +38,14 @@ class AbsTrainer(ABC):
         self._settings = self._get_settings_according_to_mode(demo_mode)
         self.inception_model = self._build_inception_model()
         self.creat_run_dirs()
+        self.add_merics()
+
+    def add_merics(self):
+        self.dis_loss_metric = tf.keras.metrics.Mean()
+        self.perceptual_loss_metric = tf.keras.metrics.Mean()
+        self.generative_loss_metric = tf.keras.metrics.Mean()
+        self.feature_loss_metric = tf.keras.metrics.Mean()
+        self.log_writer = tf.summary.create_file_writer( str((self.train_dir/"logs")))
 
     def creat_run_dirs(self):
         self.psnr_plots_path = self.train_dir / "psnr_plots"
@@ -66,9 +75,10 @@ class AbsTrainer(ABC):
     def fit(self,datasets,epochs: int = 50):
         for epoch in tqdm(range(epochs)):
             self._real_epch = epoch + self.start_epoch
-            for step_count,(lr,hr) in tqdm(enumerate(datasets.train_dataset)):
+            for step_count_curr_epoch,(lr,hr) in enumerate(datasets.train_dataset):
                 self.train_step(lr,hr)
-                self.save_progress(datasets,step_count)
+                self.save_progress(datasets,step_count_curr_epoch)
+                self.real_step +=1
             self.save_weights()
 
     def save_weights(self):
@@ -86,12 +96,24 @@ class AbsTrainer(ABC):
         modulo = step  % self._settings['steps_to_save_progress']
         if (modulo == 0 and step > 0):
             self.eval(datasets.test_dataset,step)
+            self.log_metrics(step)
             self.save_display_examples(datasets.display_dataset,step)
 
+    def log_metrics(self, step):
+        #whatc with tensorboard --logdir logs
+        with self.log_writer.as_default():
+            tf.summary.scalar("dis_loss", self.dis_loss_metric.result(),step=self.real_step)
+            tf.summary.scalar("perceptual_Loss", self.perceptual_loss_metric.result(),step=self.real_step)
+            tf.summary.scalar("generative_loss", self.generative_loss_metric.result(),step=self.real_step)
+            tf.summary.scalar("feature_Loss", self.feature_loss_metric.result(),step=self.real_step)
+        self.dis_loss_metric.reset_states()
+        self.perceptual_loss_metric.reset_states()
+        self.generative_loss_metric.reset_states()
+        self.feature_loss_metric.reset_states()
 
 
     def _calculate_fid_ssim_psnr_cur_step(self,test_dataset):
-        print("calc")
+
         real_features = []
         gen_features = []
         psnr_vals = []
@@ -156,6 +178,7 @@ class AbsTrainer(ABC):
 
 
     def eval(self,test_dataset, step: int):
+        print(f"eval_epoch_{self._real_epch}_step_{step}")
         self._calculate_fid_ssim_psnr_cur_step(test_dataset)
         display_handler.plot_graph(self.psnr_plots_path, step, self._real_epch, self._psnr_vals)
         display_handler.plot_graph(self.fid_plots_path, step, self._real_epch, self._fid_vals)
@@ -174,13 +197,21 @@ class AbsTrainer(ABC):
         plt.savefig(self.train_dir / "fid_plots" / f"fid_epoch_{self._real_epch}_step_{step}.png")
         plt.close()
 
-    @abstractmethod
-    def train_step(self, lr, hr):
-        pass
+    def train_step(self, lr_batch, hr_batch):
+         self.train_step_dis(hr_batch, lr_batch)
+         self.train_step_gen(lr_batch, hr_batch)
 
     def save_display_examples(self,test_dataset,step):
         for idx, (lr, hr) in enumerate(test_dataset):
             display_handler.display_hr_lr(self.train_dir,self.generator,hr,lr,self._real_epch,idx,step)
+
+    @abstractmethod
+    def train_step_dis(self, hr_batch, lr_batch):
+        pass
+
+    @abstractmethod
+    def train_step_gen(self, lr_batch, hr_batch):
+        pass
 
 
 

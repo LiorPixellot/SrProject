@@ -10,12 +10,6 @@ class SrGan(train.AbsTrainer):
         super().__init__(generator, discriminator, train_dir, start_epoch, demo_mode, optimizer)
         self.vgg = model.build_vgg()
 
-    def train_step(self, lr_batch, hr_batch):
-        dis_loss = self.train_step_dis(hr_batch, lr_batch)
-        perceptual_Loss, generative_loss, feature_Loss = self.train_step_gen(lr_batch, hr_batch)
-        return {"dis_loss": dis_loss, "perceptual_Loss": perceptual_Loss,
-                "generative_loss": generative_loss, "feature_Loss": feature_Loss}
-
 
 
     @tf.function
@@ -30,16 +24,18 @@ class SrGan(train.AbsTrainer):
             combined_real_labels = tf.concat([tf.zeros_like(predictions_fake), tf.ones_like(predictions_real)], axis=0)
             # compute the loss
             bce = tf.keras.losses.BinaryCrossentropy(from_logits=True)
-            dLoss = bce(combined_predicted_labels, combined_real_labels)
+            d_loss = bce(combined_predicted_labels, combined_real_labels)
 
         # compute the gradients
-        grads = tape.gradient(dLoss,self.discriminator.trainable_variables)
+        grads = tape.gradient(d_loss,self.discriminator.trainable_variables)
 
         # optimize the discriminator weights according to the
         # gradients computed
 
         self.optimizer.apply_gradients(zip(grads, self.discriminator.trainable_variables) )
-        return dLoss
+
+        self.dis_loss_metric.update_state(d_loss)
+
 
     @tf.function
     def train_step_gen(self, lr_images, hr_images):
@@ -70,7 +66,9 @@ class SrGan(train.AbsTrainer):
         # optimize the generator weights with the computed gradients
         self.optimizer.apply_gradients(zip(grads, self.generator.trainable_variables))
 
-        return perceptual_Loss, generative_loss, feature_Loss
+        self.perceptual_loss_metric.update_state(perceptual_Loss)
+        self.generative_loss_metric.update_state(generative_loss)
+        self.feature_loss_metric.update_state(feature_Loss)
 
 
 
