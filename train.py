@@ -194,7 +194,7 @@ class AbsTrainer(ABC):
         plt.close()
 
     def train_step(self, lr_batch, hr_batch):
-         self.train_step_dis(hr_batch, lr_batch)
+         self.train_step_dis(lr_batch,hr_batch)
          self.train_step_gen(lr_batch, hr_batch)
 
     def save_display_examples(self,test_dataset):

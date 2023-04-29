@@ -15,5 +15,5 @@ class SrResnet(train.AbsTrainer):
         self.generative_loss_metric.update_state(loss_value)
 
 
-    def train_step_dis(self, hr_batch, lr_batch):
+    def train_step_dis(self, lr_batch, hr_batch):
             pass

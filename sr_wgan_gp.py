@@ -25,7 +25,7 @@ class SrWganGp(train.AbsTrainer):
         self.vgg = model.build_vgg()
 
 
-
+    @tf.function
     def gradient_penalty(self, real, fake):
         batch_size = real.shape[0]
         epsilon = tf.random.uniform(shape=[batch_size, 1, 1, 1], minval=0, maxval=1)
@@ -39,7 +39,7 @@ class SrWganGp(train.AbsTrainer):
         return gp
 
     @tf.function
-    def train_step_dis(self, hr_batch, lr_batch):
+    def train_step_dis(self, lr_batch, hr_batch):
         with tf.GradientTape() as tape:
             fake_images = self.generator(lr_batch)
             real_validity = self.discriminator(hr_batch)
@@ -48,7 +48,7 @@ class SrWganGp(train.AbsTrainer):
             d_loss_real = tf.reduce_mean(real_validity)
             d_loss_fake = tf.reduce_mean(fake_validity)
             gp = self.gradient_penalty(hr_batch, fake_images)
-            d_loss = d_loss_real -d_loss_fake + 10 * gp
+            d_loss = d_loss_fake - d_loss_real  + 10 * gp
 
         grads = tape.gradient(d_loss, self.discriminator.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.discriminator.trainable_variables))

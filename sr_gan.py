@@ -13,7 +13,7 @@ class SrGan(train.AbsTrainer):
 
 
     @tf.function
-    def train_step_dis(self, hr_batch, lr_batch):
+    def train_step_dis(self, lr_batch, hr_batch):
         # train the discriminator
         with tf.GradientTape() as tape:
             # get the discriminator predictions
