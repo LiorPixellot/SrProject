@@ -71,15 +71,14 @@ class AbsTrainer(ABC):
         return settings
 
     def fit(self, datasets, steps_to_train: int = 1000000):
-       while self.real_step < steps_to_train :
-            for step_count_curr_epoch, (lr, hr) in enumerate(datasets.train_dataset):
+        for self.real_step in range(self.real_step, steps_to_train):
+            for step_count_curr_epoch, (lr_batch, hr_batch) in enumerate(datasets.train_dataset):
                 start_time = time.time()  # Record the start time
-                self.train_step(lr, hr)
+                self.train_step(lr_batch, hr_batch)
                 self.save_progress(datasets)
                 end_time = time.time()  # Record the end time
                 time_taken = end_time - start_time  # Calculate the time difference
                 print(f"step_{self.real_step}_time_taken_{time_taken:.2f}s")
-                self.real_step += 1
 
     def save_weights(self):
         gen_path = self.train_dir / "weights/generator"
@@ -98,11 +97,11 @@ class AbsTrainer(ABC):
         if (modulo == 0 and  self.real_step  > 0):
             print("save_progress")
             self.save_weights()
-            self.save_display_examples(datasets.display_dataset)
+            self.save_display_examples(datasets.validation_dataset)
 
         modulo = self.real_step % self._settings['steps_to_eval']
         if (modulo == 0 and self.real_step > 0):
-            self.eval(datasets.test_dataset)
+            self.eval(datasets.validation_dataset)
 
     def log_losses(self):
         #whatc with tensorboard --logdir logs
@@ -124,7 +123,7 @@ class AbsTrainer(ABC):
         psnr_vals = []
         ssim_vals = []
         for lr, hr in test_dataset:
-            fake_hr = self.generator(lr)
+            fake_hr = self.generator(lr, training=False)
             real_image_resized = preprocess_input_inception(tf.image.resize(hr, (299, 299)))
             generated_image_resized = preprocess_input_inception(tf.image.resize(fake_hr, (299, 299)))
             psnr_vals.append(tf.image.psnr(hr, fake_hr, max_val=255))
@@ -133,8 +132,10 @@ class AbsTrainer(ABC):
             gen_features.append(np.squeeze(self.inception_model(generated_image_resized)))
 
         # calculate mean and covariance statistics
-        mu1, sigma1 = np.mean(real_features, axis=0), np.cov(real_features, rowvar=False)
-        mu2, sigma2 = np.mean(gen_features, axis=0), np.cov(gen_features, rowvar=False)
+        concatenated_real_features =  np.concatenate(real_features, axis=0)
+        concatenated_gen_features = np.concatenate(gen_features, axis=0)
+        mu1, sigma1 = np.mean(concatenated_real_features, axis=0), np.cov(concatenated_real_features, rowvar=False)
+        mu2, sigma2 = np.mean(concatenated_gen_features, axis=0), np.cov(concatenated_gen_features, rowvar=False)
 
         ssdiff = np.sum((mu1 - mu2) ** 2.0)
         covmean = sqrtm(np.dot(sigma1, sigma2))
@@ -181,25 +182,22 @@ class AbsTrainer(ABC):
 
 
 
-
-
-    def _plot_psnr(self):
-        plt.plot(self._psnr_vals)
-        plt.savefig(self.train_dir / "psnr_plots" / f"psnr_step_{self.real_step}.png")
-        plt.close()
-
-    def _plot_fid(self, step: int):
-        plt.plot(self._fid_vals)
-        plt.savefig(self.train_dir / "fid_plots" / f"fid_step_{ self.real_step}.png")
-        plt.close()
-
     def train_step(self, lr_batch, hr_batch):
          self.train_step_dis(lr_batch,hr_batch)
          self.train_step_gen(lr_batch, hr_batch)
 
-    def save_display_examples(self,test_dataset):
-        for idx, (lr, hr) in enumerate(test_dataset):
-            display_handler.display_hr_lr(self.train_dir,self.generator,hr,lr,self.real_step,idx)
+    def save_display_examples(self, test_dataset, num_images = 60):
+        count = 0
+        for idx, (lr_batch, hr_batch) in enumerate(test_dataset):
+            for i in range(len(lr_batch)):  # Assuming lr_batch and hr_batch have the same number of images
+                lr_image = lr_batch[i]
+                hr_image = hr_batch[i]
+                display_handler.display_hr_lr(self.train_dir, self.generator, hr_image, lr_image, self.real_step,
+                                              idx * len(lr_batch) + i)
+
+                count += 1
+                if count >= num_images:
+                    return
 
     @abstractmethod
     def train_step_dis(self, hr_batch, lr_batch):

@@ -28,11 +28,11 @@ def display_images(dataset, num_images=5):
 
 def display_hr_lr(data_dir,generator,hr,lr,step,image_num):
     fig, axs = plt.subplots(1, 3, figsize=(9, 9))
-    axs[0].imshow(tf.cast(tf.squeeze(hr,axis=0), tf.uint8))
+    axs[0].imshow(tf.cast(hr, tf.uint8))
     axs[0].set_title('HR Image')
-    axs[1].imshow(tf.cast(tf.squeeze(lr,axis=0), tf.uint8))
+    axs[1].imshow(tf.cast(lr, tf.uint8))
     axs[1].set_title('LR Image')
-    axs[2].imshow(tf.cast(tf.squeeze(generator(lr),axis=0), tf.uint8))
+    axs[2].imshow(tf.cast(tf.squeeze(generator( tf.expand_dims(lr, 0)),axis=0), tf.uint8))
     axs[2].set_title('gen Image')
     axs[0].axis('off')
     axs[1].axis('off')
