@@ -14,6 +14,7 @@ from numpy import cov
 from numpy import trace
 from scipy.linalg import sqrtm
 from numpy import iscomplexobj
+import time
 
 
 class AbsTrainer(ABC):
@@ -21,26 +22,24 @@ class AbsTrainer(ABC):
                  generator: tf.keras.Model,
                  discriminator: tf.keras.Model,
                  train_dir: str,
-                 start_epoch: int = -1,
+                 real_step : int = -1,
                  demo_mode: bool = False,
                  optimizer: tf.keras.optimizers.Optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4, beta_1=0.09)):
 
-        self.real_step = 0
+        self.real_step = real_step +1
         self.train_dir = pathlib.Path(train_dir)
         self.optimizer = optimizer
         self.generator = generator
         self.discriminator = discriminator
-        self.start_epoch = start_epoch + 1
         self._psnr_vals = []
         self._fid_vals = []
         self._ssim_vals = []
-        self._real_epch = 0
         self._settings = self._get_settings_according_to_mode(demo_mode)
         self.inception_model = self._build_inception_model()
         self.creat_run_dirs()
-        self.add_merics()
+        self.add_metrics()
 
-    def add_merics(self):
+    def add_metrics(self):
         self.dis_loss_metric = tf.keras.metrics.Mean()
         self.perceptual_loss_metric = tf.keras.metrics.Mean()
         self.generative_loss_metric = tf.keras.metrics.Mean()
@@ -66,40 +65,49 @@ class AbsTrainer(ABC):
 
 
     def _get_settings_according_to_mode(self, demo_mode: bool) -> dict:
-        demo_settings = {'steps_to_save_progress': 1}
-        normal_mode = {'steps_to_save_progress': 100000}
+        demo_settings = {'steps_to_save_progress': 1,
+                         'steps_to_eval':1}
+
+        normal_mode = {'steps_to_save_progress': 5000,
+                       'steps_to_eval':60000}
         settings = demo_settings if demo_mode else normal_mode
         return settings
 
-
-    def fit(self,datasets,epochs: int = 50):
-        for epoch in tqdm(range(epochs)):
-            self._real_epch = epoch + self.start_epoch
-            for step_count_curr_epoch,(lr,hr) in enumerate(datasets.train_dataset):
-                self.train_step(lr,hr)
-                self.save_progress(datasets,step_count_curr_epoch)
-                self.real_step +=1
-            self.save_weights()
+    def fit(self, datasets, steps_to_train: int = 1000000):
+       while self.real_step < steps_to_train :
+            for step_count_curr_epoch, (lr, hr) in enumerate(datasets.train_dataset):
+                start_time = time.time()  # Record the start time
+                self.train_step(lr, hr)
+                self.save_progress(datasets)
+                end_time = time.time()  # Record the end time
+                time_taken = end_time - start_time  # Calculate the time difference
+                print(f"step_{self.real_step}_time_taken_{time_taken:.2f}s")
+                self.real_step += 1
 
     def save_weights(self):
         gen_path = self.train_dir / "weights/generator"
         gen_path.mkdir(parents=True, exist_ok=True)
-        self.generator.save(gen_path / f"{self._real_epch}.h5")
+        self.generator.save(gen_path / f"{self.real_step}.h5")
 
         if self.discriminator is not None:
             dis_path = self.train_dir / "weights/discriminator"
             dis_path.mkdir(parents=True, exist_ok=True)
-            self.discriminator.save(dis_path / f"{self._real_epch}.h5")
+            self.discriminator.save(dis_path / f"{self.real_step }.h5")
 
 
-    def save_progress(self,datasets,step: int):
-        modulo = step  % self._settings['steps_to_save_progress']
-        if (modulo == 0 and step > 0):
-            self.eval(datasets.test_dataset,step)
-            self.log_metrics(step)
-            self.save_display_examples(datasets.display_dataset,step)
+    def save_progress(self,datasets):
+        self.log_metrics()
+        modulo =  self.real_step   % self._settings['steps_to_save_progress']
+        if (modulo == 0 and  self.real_step  > 0):
+            print("save_progress")
+            self.save_weights()
+            self.save_display_examples(datasets.display_dataset)
 
-    def log_metrics(self, step):
+        modulo = self.real_step % self._settings['steps_to_eval']
+        if (modulo == 0 and self.real_step > 0):
+            self.eval(datasets.test_dataset)
+
+    def log_metrics(self):
         #whatc with tensorboard --logdir logs
         with self.log_writer.as_default():
             tf.summary.scalar("dis_loss", self.dis_loss_metric.result(),step=self.real_step)
@@ -177,33 +185,33 @@ class AbsTrainer(ABC):
         self._fid_vals.append(fid)
 
 
-    def eval(self,test_dataset, step: int):
-        print(f"eval_epoch_{self._real_epch}_step_{step}")
+    def eval(self,test_dataset):
+        print(f"eval_step_{ self.real_step }")
         self._calculate_fid_ssim_psnr_cur_step(test_dataset)
-        display_handler.plot_graph(self.psnr_plots_path, step, self._real_epch, self._psnr_vals)
-        display_handler.plot_graph(self.fid_plots_path, step, self._real_epch, self._fid_vals)
-        display_handler.plot_graph(self.ssim_plots_path, step, self._real_epch, self._ssim_vals)
+        display_handler.plot_graph(self.psnr_plots_path, self.real_step , self._psnr_vals)
+        display_handler.plot_graph(self.fid_plots_path, self.real_step , self._fid_vals)
+        display_handler.plot_graph(self.ssim_plots_path, self.real_step , self._ssim_vals)
 
 
 
 
-    def _plot_psnr(self, step: int):
+    def _plot_psnr(self):
         plt.plot(self._psnr_vals)
-        plt.savefig(self.train_dir / "psnr_plots" / f"psnr_epoch_{self._real_epch}_step_{step}.png")
+        plt.savefig(self.train_dir / "psnr_plots" / f"psnr_step_{self.real_step}.png")
         plt.close()
 
     def _plot_fid(self, step: int):
         plt.plot(self._fid_vals)
-        plt.savefig(self.train_dir / "fid_plots" / f"fid_epoch_{self._real_epch}_step_{step}.png")
+        plt.savefig(self.train_dir / "fid_plots" / f"fid_step_{ self.real_step}.png")
         plt.close()
 
     def train_step(self, lr_batch, hr_batch):
          self.train_step_dis(hr_batch, lr_batch)
          self.train_step_gen(lr_batch, hr_batch)
 
-    def save_display_examples(self,test_dataset,step):
+    def save_display_examples(self,test_dataset):
         for idx, (lr, hr) in enumerate(test_dataset):
-            display_handler.display_hr_lr(self.train_dir,self.generator,hr,lr,self._real_epch,idx,step)
+            display_handler.display_hr_lr(self.train_dir,self.generator,hr,lr,self.real_step,idx)
 
     @abstractmethod
     def train_step_dis(self, hr_batch, lr_batch):

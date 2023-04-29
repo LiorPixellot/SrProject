@@ -6,12 +6,12 @@ from keras.layers import Add, BatchNormalization, Conv2D, Dense, Flatten, Input,
 from keras.models import Model
 import tensorflow as tf
 import common
-
+from keras.layers import UpSampling2D
 
 from common import pixel_shuffle, normalize_01, normalize_m11, denormalize_m11
 def upsample(x_in, num_filters):
-    x = Conv2D(num_filters, kernel_size=3, padding='same')(x_in)
-    x = Lambda(pixel_shuffle(scale=2))(x)
+    x = UpSampling2D(size=(2, 2), interpolation='nearest')(x_in)
+    x = Conv2D(num_filters, kernel_size=3, padding='same')(x)
     return PReLU(shared_axes=[1, 2])(x)
 
 
@@ -104,21 +104,21 @@ def load_last_weights(dir_path):
 
 def load_generator(dir):
     try:
-        model , epoch =  load_last_weights(dir)
+        model , step =  load_last_weights(dir)
     except Exception as e:
-        epoch = -1
+        step = -1
         model =  sr_resnet()
-    print("starting generator from epoch " +str(epoch))
-    return model, epoch
+    print("starting generator from step " +str(step))
+    return model, step
 
 def load_discriminator(dir):
     try:
-        model, epoch = load_last_weights(dir)
+        model, step = load_last_weights(dir)
     except Exception as e:
-        epoch = -1
+        step = -1
         model = sr_resnet()
-    print("starting discriminator from epoch " + str(epoch))
-    return model, epoch
+    print("starting discriminator from epoch " + str(step))
+    return model, step
 
 
 def build_vgg():

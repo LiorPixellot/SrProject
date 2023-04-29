@@ -50,12 +50,14 @@ class SrGan(train.AbsTrainer):
             bce = tf.keras.losses.BinaryCrossentropy(from_logits=True)
             generative_loss = bce(tf.ones_like(predictions), predictions)
 
-            # compute the normalized vgg outputs
-            sr_vgg = self.vgg(preprocess_input_vgg(fakeImages))
-            hr_vgg = self.vgg(preprocess_input_vgg(hr_images))
+            sr = preprocess_input_vgg(fakeImages)
+            hr = preprocess_input_vgg(hr_images)
+            sr_features = self.vgg(sr) / 12.75
+            hr_features = self.vgg(hr) / 12.75
+
             # compute the perceptual loss
             mse = tf.keras.losses.MeanSquaredError()
-            feature_Loss = mse(hr_vgg, sr_vgg)
+            feature_Loss = mse(sr_features, hr_features)
 
             # calculate the total generator loss
             perceptual_Loss = generative_loss * 1e-3 + feature_Loss
