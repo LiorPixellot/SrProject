@@ -7,7 +7,7 @@ import model
 from pathlib import Path
 
 # Define demo_mode as a global variable
-demo_mode = False
+demo_mode = True
 
 def main(image_url):
     global demo_mode

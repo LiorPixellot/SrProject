@@ -6,7 +6,7 @@ from keras.applications.vgg19 import preprocess_input as preprocess_input_vgg
 class SrGan(train.AbsTrainer):
 
     def __init__(self, generator, discriminator, train_dir, start_epoch=-1, demo_mode=False,
-                 optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4, beta_1=0.09)):
+                 optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5, beta_1=0.09)):
         super().__init__(generator, discriminator, train_dir, start_epoch, demo_mode, optimizer)
         self.vgg = model.build_vgg()
 
@@ -17,14 +17,14 @@ class SrGan(train.AbsTrainer):
         # train the discriminator
         with tf.GradientTape() as tape:
             # get the discriminator predictions
-            predictions_real = self.discriminator(hr_batch)
-            predictions_fake = self.discriminator(self.generator(lr_batch))
-            tf.concat([predictions_real, predictions_fake], 0)
+            predictions_real = self.discriminator(hr_batch ,training=True)
+            predictions_fake = self.discriminator(self.generator(lr_batch,training=False), training=True)
+
             combined_predicted_labels = tf.concat([predictions_fake, predictions_real], axis=0)
             combined_real_labels = tf.concat([tf.zeros_like(predictions_fake), tf.ones_like(predictions_real)], axis=0)
             # compute the loss
-            bce = tf.keras.losses.BinaryCrossentropy(from_logits=True)
-            d_loss = bce(combined_predicted_labels, combined_real_labels)
+            bce = tf.keras.losses.BinaryCrossentropy(from_logits=False)
+            d_loss = bce(combined_real_labels,combined_predicted_labels)
 
         # compute the gradients
         grads = tape.gradient(d_loss,self.discriminator.trainable_variables)
@@ -41,13 +41,11 @@ class SrGan(train.AbsTrainer):
     def train_step_gen(self, lr_images, hr_images):
         with tf.GradientTape() as tape:
             # get fake images from the generator
-            fakeImages = self.generator(lr_images)
-
+            fakeImages = self.generator(lr_images,training=True)
             # get the prediction from the discriminator
-            predictions = self.discriminator(fakeImages)
-
+            predictions = self.discriminator(fakeImages, training=False)
             # compute the adversarial loss
-            bce = tf.keras.losses.BinaryCrossentropy(from_logits=True)
+            bce = tf.keras.losses.BinaryCrossentropy(from_logits=False)
             generative_loss = bce(tf.ones_like(predictions), predictions)
 
             sr = preprocess_input_vgg(fakeImages)

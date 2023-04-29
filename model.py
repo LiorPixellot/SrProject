@@ -116,7 +116,7 @@ def load_discriminator(dir):
         model, step = load_last_weights(dir)
     except Exception as e:
         step = -1
-        model = sr_resnet()
+        model = discriminator()
     print("starting discriminator from epoch " + str(step))
     return model, step
 

@@ -31,9 +31,6 @@ class AbsTrainer(ABC):
         self.optimizer = optimizer
         self.generator = generator
         self.discriminator = discriminator
-        self._psnr_vals = []
-        self._fid_vals = []
-        self._ssim_vals = []
         self._settings = self._get_settings_according_to_mode(demo_mode)
         self.inception_model = self._build_inception_model()
         self.creat_run_dirs()
@@ -96,7 +93,7 @@ class AbsTrainer(ABC):
 
 
     def save_progress(self,datasets):
-        self.log_metrics()
+        self.log_losses()
         modulo =  self.real_step   % self._settings['steps_to_save_progress']
         if (modulo == 0 and  self.real_step  > 0):
             print("save_progress")
@@ -107,7 +104,7 @@ class AbsTrainer(ABC):
         if (modulo == 0 and self.real_step > 0):
             self.eval(datasets.test_dataset)
 
-    def log_metrics(self):
+    def log_losses(self):
         #whatc with tensorboard --logdir logs
         with self.log_writer.as_default():
             tf.summary.scalar("dis_loss", self.dis_loss_metric.result(),step=self.real_step)
@@ -145,20 +142,13 @@ class AbsTrainer(ABC):
             covmean = covmean.real
 
         fid = ssdiff + np.trace(sigma1 + sigma2 - 2.0 * covmean)
-        self._fid_vals.append(fid)
-        self._psnr_vals.append(np.mean(psnr_vals))
-        self._ssim_vals.append(np.mean(ssim_vals))
 
-    def calc_avg_psnr_ssim_curr_step(self,test_dataset):
-        print("calc_avg_psnr_ssim_curr_step")
-        psnr_vals = []
-        ssim_vals = []
-        for lr, hr in test_dataset:
-            fake_hr = self.generator(lr)
-            psnr_vals.append(tf.image.psnr(hr,fake_hr, max_val=255))
-            ssim_vals.append(tf.image.ssim(hr, fake_hr, max_val=1.0))
-        self._psnr_vals.append(np.mean(psnr_vals))
-        self._ssim_vals.append(np.mean(ssim_vals))
+
+        with self.log_writer.as_default():
+            tf.summary.scalar("PSNR",np.mean(psnr_vals),step=self.real_step)
+            tf.summary.scalar("FID", fid,step=self.real_step)
+            tf.summary.scalar("SSIM", np.mean(ssim_vals),step=self.real_step)
+
 
 
     def _calculate_fid_cur_step(self,test_dataset):
@@ -188,9 +178,7 @@ class AbsTrainer(ABC):
     def eval(self,test_dataset):
         print(f"eval_step_{ self.real_step }")
         self._calculate_fid_ssim_psnr_cur_step(test_dataset)
-        display_handler.plot_graph(self.psnr_plots_path, self.real_step , self._psnr_vals)
-        display_handler.plot_graph(self.fid_plots_path, self.real_step , self._fid_vals)
-        display_handler.plot_graph(self.ssim_plots_path, self.real_step , self._ssim_vals)
+
 
 
 
