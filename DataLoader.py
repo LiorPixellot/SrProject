@@ -46,13 +46,13 @@ class MyDataLoader:
 
         def generate_image_pairs(hr_image):
             # Resize the image to the HR size
-            hr_image = tf.image.resize(hr_image, [self.hr_size, self.hr_size])
-
+            hr_image= tf.clip_by_value(hr_image, 00, 255.0)
             # Downsample the image to the LR size using bicubic interpolation
             lr_image = tf.image.resize(hr_image, [self.lr_size, self.lr_size], method='bicubic')
-
+            lr_image = tf.clip_by_value(lr_image, 00, 255.0)
             # Create a dictionary of LR and HR images
             image_pair = (lr_image, hr_image)
+
 
             return image_pair
 

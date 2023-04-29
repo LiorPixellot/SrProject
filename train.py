@@ -65,13 +65,13 @@ class AbsTrainer(ABC):
         demo_settings = {'steps_to_save_progress': 1,
                          'steps_to_eval':1}
 
-        normal_mode = {'steps_to_save_progress': 5000,
-                       'steps_to_eval':60000}
+        normal_mode = {'steps_to_save_progress': 160000,
+                       'steps_to_eval':160000}
         settings = demo_settings if demo_mode else normal_mode
         return settings
 
     def fit(self, datasets, steps_to_train: int = 1000000):
-        for self.real_step in range(self.real_step, steps_to_train):
+        while self.real_step < steps_to_train:
             for step_count_curr_epoch, (lr_batch, hr_batch) in enumerate(datasets.train_dataset):
                 start_time = time.time()  # Record the start time
                 self.train_step(lr_batch, hr_batch)
@@ -79,6 +79,7 @@ class AbsTrainer(ABC):
                 end_time = time.time()  # Record the end time
                 time_taken = end_time - start_time  # Calculate the time difference
                 print(f"step_{self.real_step}_time_taken_{time_taken:.2f}s")
+                self.real_step += len(lr_batch)
 
     def save_weights(self):
         gen_path = self.train_dir / "weights/generator"
@@ -126,7 +127,11 @@ class AbsTrainer(ABC):
             fake_hr = self.generator(lr, training=False)
             real_image_resized = preprocess_input_inception(tf.image.resize(hr, (299, 299)))
             generated_image_resized = preprocess_input_inception(tf.image.resize(fake_hr, (299, 299)))
-            psnr_vals.append(tf.image.psnr(hr, fake_hr, max_val=255))
+
+            hr = hr / 255.0
+            fake_hr = fake_hr / 255.0
+
+            psnr_vals.append(tf.image.psnr(hr, fake_hr, max_val=1.0))
             ssim_vals.append(tf.image.ssim(hr, fake_hr, max_val=1.0))
             real_features.append(np.squeeze(self.inception_model(real_image_resized)))
             gen_features.append(np.squeeze(self.inception_model(generated_image_resized)))

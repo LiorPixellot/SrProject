@@ -6,25 +6,28 @@ from pathlib import Path
 from typing import List
 
 
-
 def display_images(dataset, num_images=5):
     # Create iterators for the HR and LR datasets
 
-    pair_images = next(iter(dataset))
-
-    # Plot the first num_images HR and LR images side by side
     fig, axs = plt.subplots(num_images, 2, figsize=(12, 12))
     for i in range(num_images):
-        pair_images = next(iter(dataset))
-        axs[i][0].imshow(tf.cast(pair_images['lr_image'][i], tf.uint8))
+        lr, hr = next(iter(dataset))
+
+        print("HR image shape:", hr[0].shape)
+        print("HR image min-max:", np.min(hr[0]), np.max(hr[0]))
+
+        print("LR image shape:", lr[0].shape)
+        print("LR image min-max:", np.min(lr[0]), np.max(lr[0]))
+
+        axs[i][0].imshow(tf.cast(hr[0], tf.uint8))
         axs[i][0].set_title('HR Image')
-        axs[i][1].imshow(tf.cast(pair_images['hr_image'][i], tf.uint8))
+        axs[i][1].imshow(tf.cast(lr[0], tf.uint8))
         axs[i][1].set_title('LR Image')
         axs[i][0].axis('off')
         axs[i][1].axis('off')
+        print(hr[0])
 
     plt.show()
-
 
 def display_hr_lr(data_dir,generator,hr,lr,step,image_num):
     fig, axs = plt.subplots(1, 3, figsize=(9, 9))
