@@ -25,7 +25,7 @@ def train_sr_resnet(data_loader):
     sr_resnet_weights = Path("sr_resnet/weights")
     generator, step_gen = model.load_generator(sr_resnet_weights / "generator")
     sr_resnet_trainer = SrResnet(generator, None, "sr_resnet", step_gen, demo_mode)
-    sr_resnet_trainer.fit(data_loader, 1000000)
+    sr_resnet_trainer.fit(data_loader, 11000000)
 
 
 def train_sr_wgan_gp(data_loader):

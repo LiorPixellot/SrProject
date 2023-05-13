@@ -24,7 +24,7 @@ class AbsTrainer(ABC):
                  train_dir: str,
                  real_step : int = -1,
                  demo_mode: bool = False,
-                 optimizer: tf.keras.optimizers.Optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4, beta_1=0.09)):
+                 optimizer: tf.keras.optimizers.Optimizer = tf.keras.optimizers.Adam(learning_rate=1e-5, beta_1=0.09)):
 
         self.real_step = real_step +1
         self.train_dir = pathlib.Path(train_dir)
@@ -44,15 +44,8 @@ class AbsTrainer(ABC):
         self.log_writer = tf.summary.create_file_writer( str((self.train_dir/"logs")))
 
     def creat_run_dirs(self):
-        self.psnr_plots_path = self.train_dir / "psnr_plots"
-        self.fid_plots_path = self.train_dir / "fid_plots"
         self.images_path = self.train_dir / "images"
-        self.ssim_plots_path = self.train_dir / "ssim_plots"
-
-        self.psnr_plots_path.mkdir(parents=True, exist_ok=True)
-        self.fid_plots_path.mkdir(parents=True, exist_ok=True)
         self.images_path.mkdir(parents=True, exist_ok=True)
-        self.ssim_plots_path.mkdir(parents=True, exist_ok=True)
 
 
     def _build_inception_model(self):
@@ -80,6 +73,8 @@ class AbsTrainer(ABC):
                 time_taken = end_time - start_time  # Calculate the time difference
                 print(f"step_{self.real_step}_time_taken_{time_taken:.2f}s")
                 self.real_step += len(lr_batch)
+                if self.real_step < steps_to_train:
+                    break
 
     def save_weights(self):
         gen_path = self.train_dir / "weights/generator"
@@ -101,11 +96,12 @@ class AbsTrainer(ABC):
             self.save_display_examples(datasets.validation_dataset)
 
         modulo = self.real_step % self._settings['steps_to_eval']
+        print(modulo)
         if (modulo == 0 and self.real_step > 0):
             self.eval(datasets.validation_dataset)
 
     def log_losses(self):
-        #whatc with tensorboard --logdir logs
+        #whatc with tensorboard --logdir logs  --bind_all
         with self.log_writer.as_default():
             tf.summary.scalar("dis_loss", self.dis_loss_metric.result(),step=self.real_step)
             tf.summary.scalar("perceptual_Loss", self.perceptual_loss_metric.result(),step=self.real_step)
@@ -156,29 +152,6 @@ class AbsTrainer(ABC):
             tf.summary.scalar("SSIM", np.mean(ssim_vals),step=self.real_step)
 
 
-
-    def _calculate_fid_cur_step(self,test_dataset):
-        print("_calculate_fid_cur_step")
-        real_features = []
-        gen_features = []
-        for lr, hr in test_dataset:
-            real_image_resized = preprocess_input_inception(tf.image.resize(hr, (299, 299)))
-            generated_image_resized = preprocess_input_inception(tf.image.resize(self.generator(lr), (299, 299)))
-
-            real_features.append(np.squeeze(self.inception_model(real_image_resized)))
-            gen_features.append(np.squeeze(self.inception_model(generated_image_resized)))
-
-        # calculate mean and covariance statistics
-        mu1, sigma1 = np.mean(real_features, axis=0), np.cov(real_features, rowvar=False)
-        mu2, sigma2 = np.mean(gen_features, axis=0), np.cov(gen_features, rowvar=False)
-
-        ssdiff = np.sum((mu1 - mu2) ** 2.0)
-        covmean = sqrtm(np.dot(sigma1, sigma2))
-        if np.iscomplexobj(covmean):
-            covmean = covmean.real
-
-        fid = ssdiff + np.trace(sigma1 + sigma2 - 2.0 * covmean)
-        self._fid_vals.append(fid)
 
 
     def eval(self,test_dataset):

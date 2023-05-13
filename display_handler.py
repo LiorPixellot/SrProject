@@ -4,7 +4,7 @@ import tensorflow as tf
 
 from pathlib import Path
 from typing import List
-
+import matplotlib.gridspec as gridspec
 
 def display_images(dataset, num_images=5):
     # Create iterators for the HR and LR datasets
@@ -29,19 +29,32 @@ def display_images(dataset, num_images=5):
 
     plt.show()
 
-def display_hr_lr(data_dir,generator,hr,lr,step,image_num):
-    fig, axs = plt.subplots(1, 3, figsize=(9, 9))
-    axs[0].imshow(tf.cast(hr, tf.uint8))
-    axs[0].set_title('HR Image')
-    axs[1].imshow(tf.cast(lr, tf.uint8))
-    axs[1].set_title('LR Image')
-    axs[2].imshow(tf.cast(tf.squeeze(generator( tf.expand_dims(lr, 0)),axis=0), tf.uint8))
-    axs[2].set_title('gen Image')
-    axs[0].axis('off')
-    axs[1].axis('off')
-    axs[2].axis('off')
+
+def display_hr_lr(data_dir, generator, hr, lr, step, image_num):
+    fig = plt.figure(figsize=(15, 5))
+
+    gs = gridspec.GridSpec(1, 3, width_ratios=[4, 1, 4])  # Define the width ratio of the subplots
+
+    ax0 = plt.subplot(gs[0])
+    ax0.imshow(tf.cast(hr, tf.uint8))
+    ax0.set_title('HR Image')
+    ax0.axis('off')
+
+    ax1 = plt.subplot(gs[1])
+    ax1.imshow(tf.cast(lr, tf.uint8))
+    ax1.set_title('LR Image')
+    ax1.axis('off')
+
+    ax2 = plt.subplot(gs[2])
+    ax2.imshow(tf.cast(tf.squeeze(generator(tf.expand_dims(lr, 0)), axis=0), tf.uint8))
+    ax2.set_title('gen Image')
+    ax2.axis('off')
+
+    # Adjust the space between subplots
+    fig.subplots_adjust(wspace=0.05, hspace=0.05)
+
     template = '{}/images/image_num_{}_step_{}.png'
-    plt.savefig(template.format(data_dir,image_num, step))
+    plt.savefig(template.format(data_dir, image_num, step))
     plt.close()
 
 def show_progress(dataset,generator,step,feature_Loss,num_images=5):

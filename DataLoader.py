@@ -5,7 +5,7 @@ import os
 
 class MyDataLoader:
     def __init__(self, image_dir,demo_mode = False,
-                  val_split=0.05,hr_size=96, downsample_factor=4, batch_size=16):
+                  val_split=0.05,hr_size=96, downsample_factor=4, batch_size=1):
         self.image_dir = image_dir
         self.hr_size = hr_size
         self.downsample_factor = downsample_factor
