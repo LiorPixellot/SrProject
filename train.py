@@ -27,6 +27,7 @@ class AbsTrainer(ABC):
                  optimizer: tf.keras.optimizers.Optimizer = tf.keras.optimizers.Adam(learning_rate=1e-5, beta_1=0.09)):
 
         self.real_step = real_step +1
+        self.start_step = real_step + 1
         self.train_dir = pathlib.Path(train_dir)
         self.optimizer = optimizer
         self.generator = generator
@@ -58,13 +59,13 @@ class AbsTrainer(ABC):
         demo_settings = {'steps_to_save_progress': 1,
                          'steps_to_eval':1}
 
-        normal_mode = {'steps_to_save_progress': 160000,
-                       'steps_to_eval':160000}
+        normal_mode = {'steps_to_save_progress': 50000,
+                       'steps_to_eval':100000}
         settings = demo_settings if demo_mode else normal_mode
         return settings
 
     def fit(self, datasets, steps_to_train: int = 1000000):
-        while self.real_step < steps_to_train:
+        while self.real_step <= steps_to_train:
             for step_count_curr_epoch, (lr_batch, hr_batch) in enumerate(datasets.train_dataset):
                 start_time = time.time()  # Record the start time
                 self.train_step(lr_batch, hr_batch)
@@ -73,7 +74,7 @@ class AbsTrainer(ABC):
                 time_taken = end_time - start_time  # Calculate the time difference
                 print(f"step_{self.real_step}_time_taken_{time_taken:.2f}s")
                 self.real_step += len(lr_batch)
-                if self.real_step < steps_to_train:
+                if self.real_step >= steps_to_train:
                     break
 
     def save_weights(self):
@@ -90,14 +91,14 @@ class AbsTrainer(ABC):
     def save_progress(self,datasets):
         self.log_losses()
         modulo =  self.real_step   % self._settings['steps_to_save_progress']
-        if (modulo == 0 and  self.real_step  > 0):
+        if (modulo <= 16 and  self.real_step  > self.start_step):
             print("save_progress")
             self.save_weights()
             self.save_display_examples(datasets.validation_dataset)
 
         modulo = self.real_step % self._settings['steps_to_eval']
         print(modulo)
-        if (modulo == 0 and self.real_step > 0):
+        if (modulo <= 16 and self.real_step > self.start_step):
             self.eval(datasets.validation_dataset)
 
     def log_losses(self):
@@ -138,6 +139,13 @@ class AbsTrainer(ABC):
         mu1, sigma1 = np.mean(concatenated_real_features, axis=0), np.cov(concatenated_real_features, rowvar=False)
         mu2, sigma2 = np.mean(concatenated_gen_features, axis=0), np.cov(concatenated_gen_features, rowvar=False)
 
+        print("sigma1 shape:", sigma1.shape)
+        print("sigma1 type:", type(sigma1))
+        print("sigma2 shape:", sigma2.shape)
+        print("sigma2 type:", type(sigma2))
+        print("Dot product shape:", np.dot(sigma1, sigma2).shape)
+        print("Dot product type:", type(np.dot(sigma1, sigma2)))
+        
         ssdiff = np.sum((mu1 - mu2) ** 2.0)
         covmean = sqrtm(np.dot(sigma1, sigma2))
         if np.iscomplexobj(covmean):
@@ -164,7 +172,7 @@ class AbsTrainer(ABC):
          self.train_step_dis(lr_batch,hr_batch)
          self.train_step_gen(lr_batch, hr_batch)
 
-    def save_display_examples(self, test_dataset, num_images = 60):
+    def save_display_examples(self, test_dataset, num_images = 30):
         count = 0
         for idx, (lr_batch, hr_batch) in enumerate(test_dataset):
             for i in range(len(lr_batch)):  # Assuming lr_batch and hr_batch have the same number of images

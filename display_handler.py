@@ -57,6 +57,7 @@ def display_hr_lr(data_dir, generator, hr, lr, step, image_num):
     plt.savefig(template.format(data_dir, image_num, step))
     plt.close()
 
+
 def show_progress(dataset,generator,step,feature_Loss,num_images=5):
     # Create iterators for the HR and LR datasets
 

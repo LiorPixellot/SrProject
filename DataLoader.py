@@ -5,7 +5,7 @@ import os
 
 class MyDataLoader:
     def __init__(self, image_dir,demo_mode = False,
-                  val_split=0.05,hr_size=96, downsample_factor=4, batch_size=1):
+                  val_split=0.05,hr_size=96, downsample_factor=4, batch_size=16):
         self.image_dir = image_dir
         self.hr_size = hr_size
         self.downsample_factor = downsample_factor
@@ -24,7 +24,7 @@ class MyDataLoader:
             label_mode=None,
             image_size=(self.hr_size, self.hr_size),
             batch_size=self.batch_size,
-            shuffle=True,
+            shuffle=False,
             seed=42,
             validation_split=self.val_split,
             subset='training',
@@ -37,7 +37,7 @@ class MyDataLoader:
             label_mode=None,
             image_size=(self.hr_size, self.hr_size),
             batch_size=self.batch_size,
-            shuffle=True,
+            shuffle=False,
             seed=42,
             validation_split=self.val_split,
             subset='validation',
@@ -60,8 +60,6 @@ class MyDataLoader:
             return tf.shape(args[0])[0] == self.batch_size
 
         # Create LR and HR datasets for training and validation
-        self.train_dataset = train_dataset.map(generate_image_pairs).filter(filter_incomplete_batches).cache().prefetch(
-            tf.data.AUTOTUNE)
+        self.train_dataset = train_dataset.filter(filter_incomplete_batches).map(generate_image_pairs)
 
-        self.validation_dataset = val_dataset.map(generate_image_pairs).filter(
-            filter_incomplete_batches).cache().prefetch(tf.data.AUTOTUNE)
+        self.validation_dataset = val_dataset.filter(filter_incomplete_batches).map(generate_image_pairs)
