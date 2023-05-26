@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
+from PIL import Image
 
 from pathlib import Path
 from typing import List
@@ -57,6 +58,22 @@ def display_hr_lr(data_dir, generator, hr, lr, step, image_num):
     plt.savefig(template.format(data_dir, image_num, step))
     plt.close()
 
+def save_image(img, path):
+    """Save a tensor image to a file."""
+    img = tf.cast(img, tf.uint8)
+    img = Image.fromarray(img.numpy())
+    img.save(path)
+
+def display_hr_lr_2(data_dir, generator, hr, lr, step, image_num):
+    # Define the paths for saving the images
+    hr_path = f"{data_dir}/images/image_num_{image_num}_step_{step}_hr.png"
+    lr_path = f"{data_dir}/images/image_num_{image_num}_step_{step}_lr.png"
+    gen_path = f"{data_dir}/images/image_num_{image_num}_step_{step}_gen.png"
+
+    # Save the images
+    #save_image(hr, hr_path)
+   #save_image(lr, lr_path)
+    save_image(tf.squeeze(generator(tf.expand_dims(lr, 0)), axis=0), gen_path)
 
 def show_progress(dataset,generator,step,feature_Loss,num_images=5):
     # Create iterators for the HR and LR datasets

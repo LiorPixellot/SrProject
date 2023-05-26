@@ -24,8 +24,9 @@ class AbsTrainer(ABC):
                  train_dir: str,
                  real_step : int = -1,
                  demo_mode: bool = False,
-                 optimizer: tf.keras.optimizers.Optimizer = tf.keras.optimizers.Adam(learning_rate=1e-5, beta_1=0.09)):
-
+                 #SRGAN #optimizer: tf.keras.optimizers.Optimizer = tf.keras.optimizers.Adam(learning_rate=1e-5, beta_1=0.09)):
+                 optimizer: tf.keras.optimizers.Optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4, beta_1=0.5,beta_2=0.9)
+                 ):
         self.real_step = real_step +1
         self.start_step = real_step + 1
         self.train_dir = pathlib.Path(train_dir)
@@ -36,6 +37,8 @@ class AbsTrainer(ABC):
         self.inception_model = self._build_inception_model()
         self.creat_run_dirs()
         self.add_metrics()
+        self.k_times_train_dis = 1
+        self.cur_k_val = 0
 
     def add_metrics(self):
         self.dis_loss_metric = tf.keras.metrics.Mean()
@@ -59,7 +62,7 @@ class AbsTrainer(ABC):
         demo_settings = {'steps_to_save_progress': 1,
                          'steps_to_eval':1}
 
-        normal_mode = {'steps_to_save_progress': 50000,
+        normal_mode = {'steps_to_save_progress': 10000,
                        'steps_to_eval':100000}
         settings = demo_settings if demo_mode else normal_mode
         return settings
@@ -169,8 +172,13 @@ class AbsTrainer(ABC):
 
 
     def train_step(self, lr_batch, hr_batch):
-         self.train_step_dis(lr_batch,hr_batch)
-         self.train_step_gen(lr_batch, hr_batch)
+        self.cur_k_val += 1
+        if self.cur_k_val % (self.k_times_train_dis) > 0:
+            print("train dis")
+            self.train_step_dis(lr_batch,hr_batch)
+        else:
+            print("train gen")
+            self.train_step_gen(lr_batch, hr_batch)
 
     def save_display_examples(self, test_dataset, num_images = 30):
         count = 0
@@ -180,7 +188,8 @@ class AbsTrainer(ABC):
                 hr_image = hr_batch[i]
                 display_handler.display_hr_lr(self.train_dir, self.generator, hr_image, lr_image, self.real_step,
                                               idx * len(lr_batch) + i)
-
+                display_handler.display_hr_lr_2(self.train_dir, self.generator, hr_image, lr_image, self.real_step,
+                                              idx * len(lr_batch) + i)
                 count += 1
                 if count >= num_images:
                     return

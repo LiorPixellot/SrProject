@@ -19,10 +19,10 @@ from keras.applications.vgg19 import preprocess_input as preprocess_input_vgg
 
 class SrWganGp(train.AbsTrainer):
 
-    def __init__(self, generator, discriminator, train_dir, start_epoch=-1, demo_mode=False,
-                 optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4, beta_1=0.09)):
-        super().__init__(generator, discriminator, train_dir, start_epoch, demo_mode, optimizer)
+    def __init__(self, generator, discriminator, train_dir, start_epoch=-1, demo_mode=False):
+        super().__init__(generator, discriminator, train_dir, start_epoch, demo_mode)
         self.vgg = model.build_vgg()
+        self.k_times_train_dis = 5
 
 
     @tf.function
@@ -32,7 +32,7 @@ class SrWganGp(train.AbsTrainer):
         interpolated_images = epsilon * real + (1 - epsilon) * fake
         with tf.GradientTape() as gp_tape:
             gp_tape.watch(interpolated_images) # Tell the tape to watch the `interpolated` tensor
-            validity = self.discriminator(interpolated_images)
+            validity = self.discriminator(interpolated_images, training=True)
         gradients = gp_tape.gradient(validity, interpolated_images)
         gradients_norm = tf.sqrt(tf.reduce_sum(tf.square(gradients), axis=[1, 2, 3]))
         gp = tf.reduce_mean((gradients_norm - 1.0)**2)
