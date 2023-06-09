@@ -37,7 +37,7 @@ class AbsTrainer(ABC):
         self.inception_model = self._build_inception_model()
         self.creat_run_dirs()
         self.add_metrics()
-        self.k_times_train_dis = 1
+        self.k_times_train_dis = 2
         self.cur_k_val = 0
 
     def add_metrics(self):
@@ -62,7 +62,7 @@ class AbsTrainer(ABC):
         demo_settings = {'steps_to_save_progress': 1,
                          'steps_to_eval':1}
 
-        normal_mode = {'steps_to_save_progress': 10000,
+        normal_mode = {'steps_to_save_progress': 100000,
                        'steps_to_eval':100000}
         settings = demo_settings if demo_mode else normal_mode
         return settings
@@ -156,7 +156,9 @@ class AbsTrainer(ABC):
 
         fid = ssdiff + np.trace(sigma1 + sigma2 - 2.0 * covmean)
 
-
+        print("PSNR",np.mean(psnr_vals))
+        print("sigma1 shape:", fid)
+        print("SSIM:", np.mean(ssim_vals))
         with self.log_writer.as_default():
             tf.summary.scalar("PSNR",np.mean(psnr_vals),step=self.real_step)
             tf.summary.scalar("FID", fid,step=self.real_step)

@@ -1,7 +1,7 @@
 import train
 import tensorflow as tf
 
-class SrResnet(train.AbsTrainer):
+class   SrResnet(train.AbsTrainer):
 
     @tf.function
     def train_step_gen(self, lr_images, hr_images):

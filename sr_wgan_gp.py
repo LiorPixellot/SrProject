@@ -39,7 +39,7 @@ class SrWganGp(train.AbsTrainer):
         return gp
 
     @tf.function
-    def train_step_dis(self, lr_batch, hr_batch):
+    def train_step_dis22222(self, lr_batch, hr_batch):
         with tf.GradientTape() as tape:
             # get fake images from the generator
             fake_images = self.generator(lr_batch, training=False)
@@ -50,7 +50,10 @@ class SrWganGp(train.AbsTrainer):
             d_loss_real = tf.reduce_mean(real_validity)
             d_loss_fake = tf.reduce_mean(fake_validity)
             gp = self.gradient_penalty(hr_batch, fake_images)
-            d_loss = d_loss_fake - d_loss_real  + 10 * gp
+
+            print("gradient penalty",gp.numpy())
+            print("adv", d_loss_fake - d_loss_real)
+            d_loss = d_loss_fake - d_loss_real  + 0.5*gp
 
         # compute the gradients
         grads = tape.gradient(d_loss, self.discriminator.trainable_variables)
@@ -59,7 +62,29 @@ class SrWganGp(train.AbsTrainer):
 
         self.dis_loss_metric.update_state(d_loss)
 
+    @tf.function
+    def train_step_dis(self, lr_batch, hr_batch):
+        with tf.GradientTape() as tape:
+            # get fake images from the generator
+            fake_images = self.generator(lr_batch, training=False)
+            # get the prediction from the discriminator
+            real_validity = self.discriminator(hr_batch, training=True)
+            fake_validity = self.discriminator(fake_images, training=True)
+            # compute the loss
+            d_loss_real = tf.reduce_mean(real_validity)
+            d_loss_fake = tf.reduce_mean(fake_validity)
+            d_loss = d_loss_fake - d_loss_real
 
+        # compute the gradients
+        grads = tape.gradient(d_loss, self.discriminator.trainable_variables)
+        # optimize the discriminator weights according to the gradients
+        self.optimizer.apply_gradients(zip(grads, self.discriminator.trainable_variables))
+
+        # clip the weights
+        for var in self.discriminator.trainable_variables:
+            var.assign(tf.clip_by_value(var, -0.01, 0.01))
+
+        self.dis_loss_metric.update_state(d_loss)
 
     @tf.function
     def train_step_gen(self, lr_images, hr_images):

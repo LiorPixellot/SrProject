@@ -17,7 +17,7 @@ def main(image_url):
    #display_handler.display_images(data_loader.train_dataset)
     #train_sr_resnet(data_loader)
 
-    #train_sr_gan(data_loader)
+    train_sr_gan(data_loader)
     train_sr_wgan_gp(data_loader)
 
 def train_sr_resnet(data_loader):
