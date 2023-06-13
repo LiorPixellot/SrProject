@@ -7,6 +7,8 @@ from keras.models import Model
 import tensorflow as tf
 import common
 from keras.layers import UpSampling2D
+from keras.layers import LayerNormalization
+from keras.layers import concatenate
 
 from common import pixel_shuffle, normalize_01, normalize_m11, denormalize_m11
 def upsample(x_in, num_filters):
@@ -83,6 +85,35 @@ def discriminator(num_filters=64,hr_size=96):
     return Model(x_in, x)
 
 
+def discriminator_condition(num_filters=64):
+    # The low resolution image will act as the condition
+    condition_in = Input(shape=(None, None, 3))
+    # The high resolution image will be the target
+    target_in = Input(shape=(None, None, 3))
+
+    # Concatenate condition image and target image along the channel dimension
+    x = concatenate(axis=-1)([target_in,condition_in])
+    x = Lambda(normalize_m11)(x)
+
+    x = discriminator_block(x, num_filters, batchnorm=False)
+    x = discriminator_block(x, num_filters, strides=2)
+
+    x = discriminator_block(x, num_filters * 2)
+    x = discriminator_block(x, num_filters * 2, strides=2)
+
+    x = discriminator_block(x, num_filters * 4)
+    x = discriminator_block(x, num_filters * 4, strides=2)
+
+    x = discriminator_block(x, num_filters * 8)
+    x = discriminator_block(x, num_filters * 8, strides=2)
+
+    x = Flatten()(x)
+
+    x = Dense(1024)(x)
+    x = LeakyReLU(alpha=0.2)(x)
+    x = Dense(1, activation='sigmoid')(x)
+
+    return Model([condition_in, target_in], x)
 
 def load_last_weights(dir_path):
     file_list = os.listdir(dir_path)

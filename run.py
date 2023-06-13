@@ -19,10 +19,11 @@ def main(image_url):
     #train_sr_resnet(data_loader)
 
     #train_sr_gan(data_loader)
-    train_sr_wgan(data_loader)
-    train_sr_wgan_gp(data_loader)
-    train_sr_wgan_gp_2(data_loader)
-    train_sr_wgan_gp_05(data_loader)
+    #train_sr_wgan(data_loader)
+    #train_sr_wgan_gp(data_loader)
+    #train_sr_wgan_gp_2(data_loader)
+    #train_sr_wgan_gp_05(data_loader)
+    train_sr_cgan(data_loader)
 
 def train_sr_resnet(data_loader):
     global demo_mode
@@ -70,6 +71,14 @@ def train_sr_gan(data_loader):
     discriminator, step_des = model.load_discriminator(sr_gan_weights / "discriminator")
     generator, step_gen = model.load_generator(sr_gan_weights / "generator")
     sr_wgan_gp_trainer = SrGan(generator, discriminator, "sr_gan", step_gen, demo_mode)
+    sr_wgan_gp_trainer.fit(data_loader, 1800005)
+
+def train_sr_cgan(data_loader):
+    global demo_mode
+    sr_gan_weights = Path("sr_cgan_hr/weights")
+    discriminator, step_des = model.load_discriminator(sr_gan_weights / "discriminator")
+    generator, step_gen = model.load_generator(sr_gan_weights / "generator")
+    sr_wgan_gp_trainer = SrGan(generator, discriminator, "sr_cgan_hr", step_gen, demo_mode)
     sr_wgan_gp_trainer.fit(data_loader, 1800005)
 
 
