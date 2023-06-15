@@ -7,7 +7,7 @@ from sr_wgan import SrWgan
 import DataLoader
 import model
 from pathlib import Path
-
+from sr_cgan import  SrCGan
 # Define deo_mode as a global variable
 demo_mode = False
 
@@ -78,7 +78,7 @@ def train_sr_cgan(data_loader):
     sr_gan_weights = Path("sr_cgan_hr/weights")
     discriminator, step_des = model.load_discriminator(sr_gan_weights / "discriminator")
     generator, step_gen = model.load_generator(sr_gan_weights / "generator")
-    sr_wgan_gp_trainer = SrGan(generator, discriminator, "sr_cgan_hr", step_gen, demo_mode)
+    sr_wgan_gp_trainer = SrCGan(generator, discriminator, "sr_cgan_hr", step_gen, demo_mode)
     sr_wgan_gp_trainer.fit(data_loader, 1800005)
 
 

@@ -85,14 +85,14 @@ def discriminator(num_filters=64,hr_size=96):
     return Model(x_in, x)
 
 
-def discriminator_condition(num_filters=64):
+def discriminator_condition(num_filters=64,hr_size=96):
     # The low resolution image will act as the condition
-    condition_in = Input(shape=(None, None, 3))
+    condition_in = Input(shape=(hr_size, hr_size, 3))
     # The high resolution image will be the target
-    target_in = Input(shape=(None, None, 3))
+    target_in = Input(shape=(hr_size, hr_size, 3))
 
     # Concatenate condition image and target image along the channel dimension
-    x = concatenate(axis=-1)([target_in,condition_in])
+    x = concatenate([target_in,condition_in], axis=-1)
     x = Lambda(normalize_m11)(x)
 
     x = discriminator_block(x, num_filters, batchnorm=False)
@@ -147,7 +147,7 @@ def load_discriminator(dir):
         model, step = load_last_weights(dir)
     except Exception as e:
         step = -1
-        model = discriminator()
+        model = discriminator_condition()
     print("starting discriminator from epoch " + str(step))
     return model, step
 
