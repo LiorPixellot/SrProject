@@ -19,26 +19,21 @@ import time
 
 class AbsTrainer(ABC):
     def __init__(self,
-                 generator: tf.keras.Model,
-                 discriminator: tf.keras.Model,
                  train_dir: str,
-                 real_step : int = -1,
                  demo_mode: bool = False,
-                 #SRGAN #optimizer: tf.keras.optimizers.Optimizer = tf.keras.optimizers.Adam(learning_rate=1e-5, beta_1=0.09)):
                  optimizer: tf.keras.optimizers.Optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4, beta_1=0.5,beta_2=0.9)
                  ):
-        self.real_step = real_step +1
-        self.start_step = real_step + 1
         self.train_dir = pathlib.Path(train_dir)
         self.optimizer = optimizer
-        self.generator = generator
-        self.discriminator = discriminator
+        self.generator ,  self.start_step  = model.load_generator(self.train_dir /"weights" / "generator")
+        self.discriminator,_ =  model.load_discriminator(self.train_dir /"weights" / "discriminator")
         self._settings = self._get_settings_according_to_mode(demo_mode)
         self.inception_model = self._build_inception_model()
         self.creat_run_dirs()
         self.add_metrics()
         self.k_times_train_dis = 2
         self.cur_k_val = 0
+        self.real_step = self.start_step
 
     def add_metrics(self):
         self.dis_loss_metric = tf.keras.metrics.Mean()
@@ -94,14 +89,14 @@ class AbsTrainer(ABC):
     def save_progress(self,datasets):
         self.log_losses()
         modulo =  self.real_step   % self._settings['steps_to_save_progress']
-        if (modulo <= 16 and  self.real_step  > self.start_step):
+        if (modulo <= 15 and  self.real_step  > self.start_step):
             print("save_progress")
             self.save_weights()
             self.save_display_examples(datasets.validation_dataset)
 
         modulo = self.real_step % self._settings['steps_to_eval']
         print(modulo)
-        if (modulo <= 16 and self.real_step > self.start_step):
+        if (modulo <= 15 and self.real_step > self.start_step):
             self.eval(datasets.validation_dataset)
 
     def log_losses(self):

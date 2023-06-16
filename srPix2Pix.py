@@ -3,12 +3,14 @@ import model
 import tensorflow as tf
 from keras.applications.vgg19 import preprocess_input as preprocess_input_vgg
 
-class SrCGan(train.AbsTrainer):
+class SrPix2Pix(train.AbsTrainer):
 
-    def __init__(self, train_dir, demo_mode=False):
+    def __init__(self, train_dir, l1_loss_factor ,demo_mode=False):
         super().__init__( train_dir, demo_mode)
         self.vgg = model.build_vgg()
-        self.discriminator,_ = model.load_discriminator(self.train_dir /"weights" / "discriminator","cgan")
+        self.discriminator,_ = model.load_discriminator(self.train_dir /"weights" / "discriminator","pix2pix")
+        tf.keras.utils.plot_model(self.discriminator, show_shapes=True, dpi=64)
+        self.l1_loss_factor = l1_loss_factor
 
 
 
@@ -55,8 +57,11 @@ class SrCGan(train.AbsTrainer):
             mse = tf.keras.losses.MeanSquaredError()
             feature_Loss = mse(sr_features, hr_features)
 
+            # Mean absolute error
+            l1_loss = tf.reduce_mean(tf.abs(hr_images - fake_images))
+
             # calculate the total generator loss
-            perceptual_Loss = generative_loss * 1e-3 + feature_Loss
+            perceptual_Loss = generative_loss * 1e-3 + feature_Loss  + l1_loss*self.l1_loss_factor
 
         # compute the gradients
         grads = tape.gradient(perceptual_Loss, self.generator.trainable_variables)
