@@ -25,8 +25,8 @@ class AbsTrainer(ABC):
                  ):
         self.train_dir = pathlib.Path(train_dir)
         self.optimizer = optimizer
-        self.generator ,  self.start_step  = model.load_generator(self.train_dir /"weights" / "generator")
-        self.discriminator,_ =  model.load_discriminator(self.train_dir /"weights" / "discriminator")
+        self.generator ,  self.start_step  = self.create_generator()
+        self.discriminator,_ =  self.create_discriminator()
         self._settings = self._get_settings_according_to_mode(demo_mode)
         self.inception_model = self._build_inception_model()
         self.creat_run_dirs()
@@ -199,5 +199,13 @@ class AbsTrainer(ABC):
     def train_step_gen(self, lr_batch, hr_batch):
         pass
 
+
+    @abstractmethod
+    def create_generator(self):
+        pass
+
+    @abstractmethod
+    def create_discriminator(self):
+        pass
 
 

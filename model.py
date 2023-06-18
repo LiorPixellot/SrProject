@@ -50,7 +50,6 @@ def sr_resnet(num_filters=64, num_res_blocks=16):
     return Model(x_in, x)
 
 
-generator = sr_resnet
 
 
 def discriminator_block(x_in, num_filters, strides=1, batchnorm=True, momentum=0.8):
@@ -116,13 +115,16 @@ def load_last_weights(dir_path):
 
 
 
-def load_generator(dir):
+def load_generator(dir,type = "resnet"):
     print(dir)
     try:
         model , step =  load_last_weights(dir)
     except Exception as e:
         step = 0
-        model =  sr_resnet()
+        if type == "unet":
+            model = unet()
+        else:
+            model =  sr_resnet()
     print("starting generator from step " +str(step))
     return model, step
 
@@ -188,3 +190,82 @@ def discriminator_pix2pix(hr_size=96):
                                 kernel_initializer=initializer)(zero_pad2)  # (batch_size, 30, 30, 1)
 
   return tf.keras.Model(inputs=[inp, tar], outputs=last)
+
+
+
+
+
+
+
+
+
+
+
+def upsample_unet(filters, size, apply_dropout=False):
+  initializer = tf.random_normal_initializer(0., 0.02)
+
+  result = tf.keras.Sequential()
+  result.add(
+    tf.keras.layers.Conv2DTranspose(filters, size, strides=2,
+                                    padding='same',
+                                    kernel_initializer=initializer,
+                                    use_bias=False))
+
+  result.add(tf.keras.layers.BatchNormalization())
+
+  if apply_dropout:
+      result.add(tf.keras.layers.Dropout(0.5))
+
+  result.add(tf.keras.layers.ReLU())
+
+  return result
+
+
+
+
+
+
+def unet():
+  inputs = tf.keras.layers.Input(shape=[96, 96, 3])
+
+  down_stack = [
+    downsample(64, 4, apply_batchnorm=False),  # (batch_size, 48, 48, 64)
+    downsample(128, 4),  # (batch_size, 24, 24, 128)
+    downsample(256, 4),  # (batch_size, 12, 12, 256)
+    downsample(512, 4),  # (batch_size, 6, 6, 512)
+    downsample(512, 4),  # (batch_size, 3, 3, 512)
+  ]
+
+  up_stack = [
+    upsample_unet(512, 4, apply_dropout=True),  # (batch_size, 6, 6, 1024)
+    upsample_unet(512, 4),  # (batch_size, 12, 12, 1024)
+    upsample_unet(256, 4),  # (batch_size, 24, 24, 512)
+    upsample_unet(128, 4),  # (batch_size, 48, 48, 256)
+    upsample_unet(64, 4),  # (batch_size, 96, 96, 128)
+  ]
+
+  initializer = tf.random_normal_initializer(0., 0.02)
+  last = tf.keras.layers.Conv2DTranspose(3, 4,
+                                         strides=2,
+                                         padding='same',
+                                         kernel_initializer=initializer,
+                                         activation='tanh')  # (batch_size, 96, 96, 3)
+
+  x = inputs
+
+  # Downsampling through the model
+  skips = []
+  for down in down_stack:
+    x = down(x)
+    skips.append(x)
+
+  skips = reversed(skips[:-1])
+
+  # Upsampling and establishing the skip connections
+  for up, skip in zip(up_stack, skips):
+    x = up(x)
+    x = tf.keras.layers.Concatenate()([x, skip])
+
+  x = last(x)
+
+  return tf.keras.Model(inputs=inputs, outputs=x)
