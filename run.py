@@ -19,8 +19,13 @@ def main(image_url):
 
 
 
-    sr_resnet_trainer = SrCGan("sr_cgan_hr")
-    sr_resnet_trainer.fit(data_loader, 1800005)
+    sr_Pix2Pix_1 = SrPix2Pix("sr_Pix2Pix_1",1)
+    sr_Pix2Pix_01 = SrPix2Pix("sr_Pix2Pix_01", 0.1)
+    sr_Pix2Pix_10 = SrPix2Pix("sr_Pix2Pix_10", 10)
+
+    models = [('sr_Pix2Pix_1', sr_Pix2Pix_1.generator), ('sr_Pix2Pix_01', sr_Pix2Pix_01.generator), ('sr_Pix2Pix_10', sr_Pix2Pix_10.generator)]
+    display_handler.get_n_images_with_most_diffrancess_fid(data_loader.validation_dataset,models,20)
+
 
 
 
