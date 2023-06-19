@@ -18,12 +18,17 @@ def main(image_url):
     # Load the dataset using a custom DataLoader
     data_loader = DataLoader.MyDataLoader(image_url, demo_mode)
 
-    sr_Pix2Pix_100 = SrPix2Pix("sr_Pix2Pix_01", 0.1)
-    sr_Pix2Pix_100.fit(data_loader,3000000)
+    #sr_Pix2Pix_100 = SrPix2Pix("sr_Pix2Pix_01", 0.1)
+    #sr_Pix2Pix_100.fit(data_loader,3000000)
 
     sr_Pix2Pix_100 = pix2pix("real_Pix2Pix_100", 100)
-    sr_Pix2Pix_100.fit(data_loader,3000000)
+    sr_Pix2Pix_100.fit(data_loader,1000000)
 
+    sr_Pix2Pix_100 = pix2pix("real_Pix2Pix_10", 10)
+    sr_Pix2Pix_100.fit(data_loader,1000000)
+
+    sr_Pix2Pix_100 = pix2pix("real_Pix2Pix_1", 1)
+    sr_Pix2Pix_100.fit(data_loader, 1000000)
    # sr_Pix2Pix_1 = SrPix2Pix("sr_Pix2Pix_1",1)
    # sr_Pix2Pix_01 = SrPix2Pix("sr_Pix2Pix_01", 0.1)
    # sr_Pix2Pix_10 = SrPix2Pix("sr_Pix2Pix_10", 10)
