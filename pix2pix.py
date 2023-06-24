@@ -5,9 +5,9 @@ from keras.applications.vgg19 import preprocess_input as preprocess_input_vgg
 
 class pix2pix(train.AbsTrainer):
 
-    def __init__(self, train_dir, l1_loss_factor ,demo_mode=False):
-        super().__init__( train_dir, demo_mode)
-        #tf.keras.utils.plot_model(self.discriminator, show_shapes=True, dpi=64)
+    def __init__(self, train_dir, hr_size,l1_loss_factor ,demo_mode=False):
+        super().__init__( train_dir,hr_size, demo_mode)
+        self.vgg = model.build_vgg()
         self.l1_loss_factor = l1_loss_factor
 
 
@@ -81,5 +81,5 @@ class pix2pix(train.AbsTrainer):
 
 
     def create_discriminator(self):
-        return model.load_discriminator(self.train_dir /"weights" / "discriminator","pix2pix")
+        return model.load_discriminator(self.train_dir /"weights" / "discriminator","patch_gan",self.hr_size)
 

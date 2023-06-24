@@ -20,20 +20,24 @@ import time
 class AbsTrainer(ABC):
     def __init__(self,
                  train_dir: str,
+                 hr_size = 64,
                  demo_mode: bool = False,
                  optimizer: tf.keras.optimizers.Optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4, beta_1=0.5,beta_2=0.9)
                  ):
         self.train_dir = pathlib.Path(train_dir)
-        self.optimizer = optimizer
-        self.generator ,  self.start_step  = self.create_generator()
+        self.hr_size = hr_size
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4, beta_1=0.5,beta_2=0.9)
+        self.generator, self.start_step = self.create_generator()
+        self.real_step = self.start_step
         self.discriminator,_ =  self.create_discriminator()
         self._settings = self._get_settings_according_to_mode(demo_mode)
-        self.inception_model = self._build_inception_model()
+        self.inception_model = model.build_inception_model()
         self.creat_run_dirs()
         self.add_metrics()
         self.k_times_train_dis = 2
         self.cur_k_val = 0
-        self.real_step = self.start_step
+
+
 
     def add_metrics(self):
         self.dis_loss_metric = tf.keras.metrics.Mean()
@@ -47,13 +51,10 @@ class AbsTrainer(ABC):
         self.images_path.mkdir(parents=True, exist_ok=True)
 
 
-    def _build_inception_model(self):
-        model = InceptionV3(include_top=False, pooling='avg', input_shape=(299, 299, 3))
-        model.trainable = False
-        return model
-
 
     def _get_settings_according_to_mode(self, demo_mode: bool) -> dict:
+        print("demo")
+        print(demo_mode)
         demo_settings = {'steps_to_save_progress': 1,
                          'steps_to_eval':1}
 
@@ -89,14 +90,14 @@ class AbsTrainer(ABC):
     def save_progress(self,datasets):
         self.log_losses()
         modulo =  self.real_step   % self._settings['steps_to_save_progress']
-        if (modulo <= 15 and  self.real_step  > self.start_step):
+        if (modulo <= 0 and  self.real_step  > self.start_step):
             print("save_progress")
             self.save_weights()
             self.save_display_examples(datasets.validation_dataset)
 
         modulo = self.real_step % self._settings['steps_to_eval']
         print(modulo)
-        if (modulo <= 15 and self.real_step > self.start_step):
+        if (modulo <= 0 and self.real_step > self.start_step):
             self.eval(datasets.validation_dataset)
 
     def log_losses(self):
@@ -112,6 +113,7 @@ class AbsTrainer(ABC):
         self.feature_loss_metric.reset_states()
 
 
+
     def _calculate_fid_ssim_psnr_cur_step(self,test_dataset):
 
         real_features = []
@@ -119,6 +121,10 @@ class AbsTrainer(ABC):
         psnr_vals = []
         ssim_vals = []
         for lr, hr in test_dataset:
+            # Calculate the size of hr_batch
+            hr_size = hr.shape[1:3]  # Assuming hr_batch has shape (batch_size, height, width, channels)  TODO!!!!!!!!!!
+            # Resize low-resolution images to the same size as high-resolution images
+            lr = tf.image.resize(lr, hr_size, method=tf.image.ResizeMethod.BICUBIC)  # TODO!!!!!!!!!!
             fake_hr = self.generator(lr, training=False)
             real_image_resized = preprocess_input_inception(tf.image.resize(hr, (299, 299)))
             generated_image_resized = preprocess_input_inception(tf.image.resize(fake_hr, (299, 299)))
@@ -132,10 +138,13 @@ class AbsTrainer(ABC):
             gen_features.append(np.squeeze(self.inception_model(generated_image_resized)))
 
         # calculate mean and covariance statistics
-        concatenated_real_features =  np.concatenate(real_features, axis=0)
-        concatenated_gen_features = np.concatenate(gen_features, axis=0)
-        mu1, sigma1 = np.mean(concatenated_real_features, axis=0), np.cov(concatenated_real_features, rowvar=False)
-        mu2, sigma2 = np.mean(concatenated_gen_features, axis=0), np.cov(concatenated_gen_features, rowvar=False)
+        #concatenated_real_features =  np.concatenate(real_features, axis=0)
+        #concatenated_gen_features = np.concatenate(gen_features, axis=0)
+        #mu1, sigma1 = np.mean(concatenated_real_features, axis=0), np.cov(concatenated_real_features, rowvar=False)
+        #mu2, sigma2 = np.mean(concatenated_gen_features, axis=0), np.cov(concatenated_gen_features, rowvar=False)
+
+        mu1, sigma1 = np.mean(real_features, axis=0), np.cov(real_features, rowvar=False)
+        mu2, sigma2 = np.mean(gen_features, axis=0), np.cov(gen_features, rowvar=False)
 
         print("sigma1 shape:", sigma1.shape)
         print("sigma1 type:", type(sigma1))
@@ -183,9 +192,9 @@ class AbsTrainer(ABC):
             for i in range(len(lr_batch)):  # Assuming lr_batch and hr_batch have the same number of images
                 lr_image = lr_batch[i]
                 hr_image = hr_batch[i]
-                display_handler.display_hr_lr(self.train_dir, self.generator, hr_image, lr_image, self.real_step,
-                                              idx * len(lr_batch) + i)
-                display_handler.display_hr_lr_2(self.train_dir, self.generator, hr_image, lr_image, self.real_step,
+                #display_handler.dump_hr_lr_side_by_side(self.train_dir, self.generator, hr_image, lr_image, self.real_step,
+                #                              idx * len(lr_batch) + i)
+                display_handler.dump_hr_lr_images(self.train_dir, self.generator, hr_image, lr_image, self.real_step,
                                               idx * len(lr_batch) + i)
                 count += 1
                 if count >= num_images:

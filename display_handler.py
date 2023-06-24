@@ -8,32 +8,13 @@ from typing import List
 import matplotlib.gridspec as gridspec
 import os
 from keras.applications.inception_v3 import preprocess_input as preprocess_input_inception
-
-def display_images(dataset, num_images=5):
-    # Create iterators for the HR and LR datasets
-
-    fig, axs = plt.subplots(num_images, 2, figsize=(12, 12))
-    for i in range(num_images):
-        lr, hr = next(iter(dataset))
-
-        print("HR image shape:", hr[0].shape)
-        print("HR image min-max:", np.min(hr[0]), np.max(hr[0]))
-
-        print("LR image shape:", lr[0].shape)
-        print("LR image min-max:", np.min(lr[0]), np.max(lr[0]))
-
-        axs[i][0].imshow(tf.cast(hr[0], tf.uint8))
-        axs[i][0].set_title('HR Image')
-        axs[i][1].imshow(tf.cast(lr[0], tf.uint8))
-        axs[i][1].set_title('LR Image')
-        axs[i][0].axis('off')
-        axs[i][1].axis('off')
-        print(hr[0])
-
-    plt.show()
+import cv2
+import numpy as np
+from skimage.metrics import structural_similarity as ssim
+import matplotlib.pyplot as plt
 
 
-def display_hr_lr(data_dir, generator, hr, lr, step, image_num):
+def dump_hr_lr_side_by_side(data_dir, generator, hr, lr, step, image_num):
     fig = plt.figure(figsize=(15, 5))
 
     gs = gridspec.GridSpec(1, 3, width_ratios=[4, 1, 4])  # Define the width ratio of the subplots
@@ -66,24 +47,20 @@ def save_image(img, path):
     img = Image.fromarray(img.numpy())
     img.save(path)
 
-def display_hr_lr_2(data_dir, generator, hr, lr, step, image_num):
+def dump_hr_lr_images(data_dir, generator, hr, lr, step, image_num):
     # Define the paths for saving the images
     hr_path = f"{data_dir}/images/image_num_{image_num}_step_{step}_hr.png"
     lr_path = f"{data_dir}/images/image_num_{image_num}_step_{step}_lr.png"
     gen_path = f"{data_dir}/images/image_num_{image_num}_step_{step}_gen.png"
 
+    # Calculate the size of hr_batch
+    hr_size = hr.shape[0:2]  # Assuming hr_batch has shape (batch_size, height, width, channels)  TODO!!!!!!!!!!
+    # Resize low-resolution images to the same size as high-resolution images
+    lr = tf.image.resize(lr, hr_size, method=tf.image.ResizeMethod.BICUBIC)  #TODO!!!!!!!!!!
     # Save the images
-    #save_image(hr, hr_path)
-   #save_image(lr, lr_path)
+    save_image(hr, hr_path)
+    save_image(lr, lr_path)
     save_image(tf.squeeze(generator(tf.expand_dims(lr, 0)), axis=0), gen_path)
-
-
-
-import cv2
-import numpy as np
-from skimage.metrics import structural_similarity as ssim
-import matplotlib.pyplot as plt
-
 
 def show_image(title, image):
     plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
@@ -163,30 +140,6 @@ def calculate_ssim_values(models, dataset):
 
     return ssim_vals
 
-from keras.applications.inception_v3 import InceptionV3
-def calculate_fid_values(models, dataset,inception_model):
-    fid_vals = {}
-    # Loop over each model
-    for model_name, model in models:
-        fid_vals[model_name] = []
-        # Get the output of the model
-        for lr, hr in dataset:
-            fake_hr = model(lr, training=False)
-
-            # Calculate the SSIM for each image in the batch
-            for i in range(hr.shape[0]):  # iterate over the batch size
-                fake_hr = model(lr, training=False)
-                real_image_resized = preprocess_input_inception(tf.image.resize(hr, (299, 299)))
-                generated_image_resized = preprocess_input_inception(tf.image.resize(fake_hr, (299, 299)))
-
-                hr = hr / 255.0
-                fake_hr = fake_hr / 255.0
-
-
-
-                fid_vals[model_name].append( np.abs(np.squeeze(inception_model(real_image_resized)) - (np.squeeze(inception_model(generated_image_resized)))))
-
-    return fid_vals
 
 def get_max_difference_indices(ssim_vals, N):
     # Get the model names
@@ -233,34 +186,11 @@ def get_n_images_with_most_diffrancess(dataset,models,N):
 
 
 
-def get_n_images_with_most_diffrancess_fid(dataset,models,N):
-    # Get the number of batches and batch size
-    num_batches = 192469/16
-    batch_size = 16
-
-    # Calculate SSIM values
-    inception_model = InceptionV3(include_top=False, pooling='avg', input_shape=(299, 299, 3))
-    inception_model.trainable = False
-    ssim_vals = calculate_fid_values(models, dataset,inception_model)
-
-    # Get indices of N images with most significant SSIM differences
-    indices = get_max_difference_indices(ssim_vals, N)
-
-    # For each index, calculate the batch number and the index within the batch
-    for index in indices:
-        batch_num = index // batch_size
-        within_batch_index = index % batch_size
 
 
-        hr = None
-        lr = None
-        for lr_batch,hr_batch in dataset.take(batch_num + 1):
-            if batch_num == 0:
-                lr = lr_batch[within_batch_index]
-                hr = hr_batch[within_batch_index]
-            else:
-                batch_num -= 1
 
 
-        # Show the difference between the high-resolution images of the two models
-        show_image_diff(models,lr,hr,index)
+
+
+  #tf.keras.utils.plot_model(self.discriminator, show_shapes=True, dpi=64)
+  #tf.keras.utils.plot_model(self.discriminator, show_shapes=True, dpi=64)
