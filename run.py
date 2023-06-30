@@ -12,15 +12,21 @@ from srPix2Pix import SrPix2Pix
 from pix2pix import pix2pix
 # Define deo_mode as a global variable
 demo_mode = False
-hr=256
+hr=96
 def main(image_url):
     global demo_mode
     # Load the dataset using a custom DataLoader
     data_loader = DataLoader.MyDataLoader(image_url,demo_mode,hr)
 
-    sr_Pix2Pix_100 = pix2pix("_pix2pixBi2222g",hr,100,demo_mode)
+    sr_Pix2Pix_100 = SrPix2Pix("_pix2pix100",hr,100)
     sr_Pix2Pix_100.fit(data_loader,3000000)
 
+    sr_Pix2Pix_100 = SrPix2Pix("_pix2pix10",hr,100)
+    sr_Pix2Pix_100.fit(data_loader,3000000)
+
+
+    sr_Pix2Pix_100 = SrPix2Pix("_pix2pix01",hr,0.1)
+    sr_Pix2Pix_100.fit(data_loader,3000000)
     #models = [('sr_Pix2Pix_1', sr_Pix2Pix_1.generator), ('sr_Pix2Pix_01', sr_Pix2Pix_01.generator), ('sr_Pix2Pix_10', sr_Pix2Pix_10.generator)]
     #display_handler.get_n_images_with_most_diffrancess_fid(data_loader.validation_dataset,models,20)
 

@@ -54,9 +54,7 @@ def dump_hr_lr_images(data_dir, generator, hr, lr, step, image_num):
     gen_path = f"{data_dir}/images/image_num_{image_num}_step_{step}_gen.png"
 
     # Calculate the size of hr_batch
-    hr_size = hr.shape[0:2]  # Assuming hr_batch has shape (batch_size, height, width, channels)  TODO!!!!!!!!!!
     # Resize low-resolution images to the same size as high-resolution images
-    lr = tf.image.resize(lr, hr_size, method=tf.image.ResizeMethod.BICUBIC)  #TODO!!!!!!!!!!
     # Save the images
     save_image(hr, hr_path)
     save_image(lr, lr_path)

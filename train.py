@@ -22,7 +22,6 @@ class AbsTrainer(ABC):
                  train_dir: str,
                  hr_size = 64,
                  demo_mode: bool = False,
-                 optimizer: tf.keras.optimizers.Optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4, beta_1=0.5,beta_2=0.9)
                  ):
         self.train_dir = pathlib.Path(train_dir)
         self.hr_size = hr_size
@@ -53,8 +52,6 @@ class AbsTrainer(ABC):
 
 
     def _get_settings_according_to_mode(self, demo_mode: bool) -> dict:
-        print("demo")
-        print(demo_mode)
         demo_settings = {'steps_to_save_progress': 1,
                          'steps_to_eval':1}
 
@@ -122,9 +119,7 @@ class AbsTrainer(ABC):
         ssim_vals = []
         for lr, hr in test_dataset:
             # Calculate the size of hr_batch
-            hr_size = hr.shape[1:3]  # Assuming hr_batch has shape (batch_size, height, width, channels)  TODO!!!!!!!!!!
             # Resize low-resolution images to the same size as high-resolution images
-            lr = tf.image.resize(lr, hr_size, method=tf.image.ResizeMethod.BICUBIC)  # TODO!!!!!!!!!!
             fake_hr = self.generator(lr, training=False)
             real_image_resized = preprocess_input_inception(tf.image.resize(hr, (299, 299)))
             generated_image_resized = preprocess_input_inception(tf.image.resize(fake_hr, (299, 299)))
