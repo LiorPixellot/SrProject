@@ -5,8 +5,8 @@ from keras.applications.vgg19 import preprocess_input as preprocess_input_vgg
 
 class SrGan(train.AbsTrainer):
 
-    def __init__(self, train_dir ,demo_mode=False):
-        super().__init__( train_dir, demo_mode)
+    def __init__(self, train_dir, hr_size,demo_mode=False):
+        super().__init__( train_dir,hr_size, demo_mode)
         self.vgg = model.build_vgg()
 
 
@@ -76,4 +76,4 @@ class SrGan(train.AbsTrainer):
 
 
     def create_discriminator(self):
-        return model.load_discriminator(self.train_dir /"weights" / "discriminator","gan")
+        return model.load_discriminator(self.train_dir /"weights" / "discriminator","gan",self.hr_size)

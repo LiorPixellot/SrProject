@@ -12,23 +12,29 @@ from srPix2Pix import SrPix2Pix
 from pix2pix import pix2pix
 # Define deo_mode as a global variable
 demo_mode = False
-hr=96
+hr_size=96
 def main(image_url):
     global demo_mode
     # Load the dataset using a custom DataLoader
-    data_loader = DataLoader.MyDataLoader(image_url,demo_mode,hr)
+    data_loader = DataLoader.MyDataLoader(image_url, demo_mode, hr_size)
 
-    sr_Pix2Pix_100 = SrPix2Pix("_pix2pix100",hr,100)
-    sr_Pix2Pix_100.fit(data_loader,3000000)
+    #sr_Pix2Pix_01 = SrPix2Pix("sr_Pix2Pix_01", hr_size, 0.1)
+    #sr_wgan = SrWgan("sr_wgan_clip", hr_size)
+    #no_transfer_srgan = SrGan("no_transfer_srgan",hr_size)
+    #srgan = SrGan("srgan",hr_size)
 
-    sr_Pix2Pix_100 = SrPix2Pix("_pix2pix10",hr,100)
-    sr_Pix2Pix_100.fit(data_loader,3000000)
+    #models = [('no_transfer_srgan', no_transfer_srgan.generator),('sr_Pix2Pix_01', sr_Pix2Pix_01.generator), ('sr_wgan', sr_wgan.generator),('srgan', srgan.generator)]
+    #display_handler.plot_pca_fid(models,data_loader.validation_dataset)
+    #models = [('sr_Pix2Pix_01', sr_Pix2Pix_01.generator), ('sr_wgan', sr_wgan.generator),
+    #           ('srgan', srgan.generator)]
+    #display_handler.get_n_images_with_most_diffrancess(data_loader,models,20)
+    #display_handler.get_n_images_with_most_diffrancess(data_loader, models,20, "ssim")
+    #resnet_upsample = SrResnet("upsample_conv",hr_size)
+    #resnet_upsample.fit(data_loader,1000000)
 
-
-    sr_Pix2Pix_100 = SrPix2Pix("_pix2pix01",hr,0.1)
-    sr_Pix2Pix_100.fit(data_loader,3000000)
-    #models = [('sr_Pix2Pix_1', sr_Pix2Pix_1.generator), ('sr_Pix2Pix_01', sr_Pix2Pix_01.generator), ('sr_Pix2Pix_10', sr_Pix2Pix_10.generator)]
-    #display_handler.get_n_images_with_most_diffrancess_fid(data_loader.validation_dataset,models,20)
+    #data_loader = DataLoader.MyDataLoader(image_url, demo_mode, hr_size,1)
+    pix2pix_dis = SrResnet("resUp", hr_size)
+    pix2pix_dis.fit(data_loader, 1200000)
 
 
 

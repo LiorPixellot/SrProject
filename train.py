@@ -95,7 +95,7 @@ class AbsTrainer(ABC):
         modulo = self.real_step % self._settings['steps_to_eval']
         print(modulo)
         if (modulo <= 0 and self.real_step > self.start_step):
-            self.eval(datasets.validation_dataset)
+            self.eval(datasets)
 
     def log_losses(self):
         #whatc with tensorboard --logdir logs  --bind_all
@@ -111,13 +111,13 @@ class AbsTrainer(ABC):
 
 
 
-    def _calculate_fid_ssim_psnr_cur_step(self,test_dataset):
+    def _calculate_fid_ssim_psnr_cur_step(self,datasets):
 
         real_features = []
         gen_features = []
         psnr_vals = []
         ssim_vals = []
-        for lr, hr in test_dataset:
+        for lr, hr in datasets.validation_dataset:
             # Calculate the size of hr_batch
             # Resize low-resolution images to the same size as high-resolution images
             fake_hr = self.generator(lr, training=False)
@@ -133,13 +133,14 @@ class AbsTrainer(ABC):
             gen_features.append(np.squeeze(self.inception_model(generated_image_resized)))
 
         # calculate mean and covariance statistics
-        #concatenated_real_features =  np.concatenate(real_features, axis=0)
-        #concatenated_gen_features = np.concatenate(gen_features, axis=0)
-        #mu1, sigma1 = np.mean(concatenated_real_features, axis=0), np.cov(concatenated_real_features, rowvar=False)
-        #mu2, sigma2 = np.mean(concatenated_gen_features, axis=0), np.cov(concatenated_gen_features, rowvar=False)
-
-        mu1, sigma1 = np.mean(real_features, axis=0), np.cov(real_features, rowvar=False)
-        mu2, sigma2 = np.mean(gen_features, axis=0), np.cov(gen_features, rowvar=False)
+        if(datasets.batch_size == 1):
+            mu1, sigma1 = np.mean(real_features, axis=0), np.cov(real_features, rowvar=False)
+            mu2, sigma2 = np.mean(gen_features, axis=0), np.cov(gen_features, rowvar=False)
+        else:
+             concatenated_real_features =  np.concatenate(real_features, axis=0)
+             concatenated_gen_features = np.concatenate(gen_features, axis=0)
+             mu1, sigma1 = np.mean(concatenated_real_features, axis=0), np.cov(concatenated_real_features, rowvar=False)
+             mu2, sigma2 = np.mean(concatenated_gen_features, axis=0), np.cov(concatenated_gen_features, rowvar=False)
 
         print("sigma1 shape:", sigma1.shape)
         print("sigma1 type:", type(sigma1))
@@ -166,9 +167,9 @@ class AbsTrainer(ABC):
 
 
 
-    def eval(self,test_dataset):
+    def eval(self,datasets):
         print(f"eval_step_{ self.real_step }")
-        self._calculate_fid_ssim_psnr_cur_step(test_dataset)
+        self._calculate_fid_ssim_psnr_cur_step(datasets)
 
 
 

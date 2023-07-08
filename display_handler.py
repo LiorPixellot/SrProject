@@ -12,8 +12,14 @@ import cv2
 import numpy as np
 from skimage.metrics import structural_similarity as ssim
 import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
+import numpy as np
+import tensorflow as tf
+from sklearn.preprocessing import StandardScaler
+from DataLoader import MyDataLoader
 
-
+import  model
 def dump_hr_lr_side_by_side(data_dir, generator, hr, lr, step, image_num):
     fig = plt.figure(figsize=(15, 5))
 
@@ -65,7 +71,7 @@ def show_image(title, image):
     plt.title(title)
     plt.show()
 
-def show_image_diff(models,lr,hr,index):
+def show_image_diff(models,lr,hr,index,metric):
 
     image1 = hr.numpy()
     image2 = models[0][1](np.expand_dims(lr, axis=0))[0].numpy()
@@ -93,9 +99,9 @@ def show_image_diff(models,lr,hr,index):
     # Create a directory to save the regions
     if not os.path.exists('regions'):
         os.makedirs('regions')
-    cv2.imwrite(f'regions/{index}_hr.png', cv2.cvtColor(image1, cv2.COLOR_RGB2BGR))
+    cv2.imwrite(f'{metric}/{index}_hr.png', cv2.cvtColor(image1, cv2.COLOR_RGB2BGR))
     for model_name, model in models:
-        cv2.imwrite(f'regions/{index}_{model_name}.png',cv2.cvtColor(model(np.expand_dims(lr, axis=0))[0].numpy(), cv2.COLOR_RGB2BGR))
+        cv2.imwrite(f'{metric}/{index}_{model_name}.png',cv2.cvtColor(model(np.expand_dims(lr, axis=0))[0].numpy(), cv2.COLOR_RGB2BGR))
     # loop over the contours
     for i, contour in enumerate(contours):
         # compute the bounding box of the contour and then draw the bounding box on both input images to represent where the two images differ
@@ -104,12 +110,12 @@ def show_image_diff(models,lr,hr,index):
 
         # Save the region of interest from image1
         hr_region = image1[y:y + h, x:x + w]
-        cv2.imwrite(f'regions/{index}_hr_region_{i}.png', cv2.cvtColor(hr_region, cv2.COLOR_RGB2BGR))
+        cv2.imwrite(f'{metric}/{index}_hr_region_{i}.png', cv2.cvtColor(hr_region, cv2.COLOR_RGB2BGR))
 
         # Save the region of interest from image2
         for model_name, model in models:
             region = model(np.expand_dims(lr, axis=0))[0].numpy()[y:y + h, x:x + w]
-            cv2.imwrite(f'regions/{index}_{model_name}_region_{i}.png', cv2.cvtColor(region, cv2.COLOR_RGB2BGR))
+            cv2.imwrite(f'{metric}/{index}_{model_name}_region_{i}.png', cv2.cvtColor(region, cv2.COLOR_RGB2BGR))
 
     for i, contour in enumerate(contours):
         # compute the bounding box of the contour and then draw the bounding box on both input images to represent where the two images differ
@@ -117,10 +123,9 @@ def show_image_diff(models,lr,hr,index):
         cv2.rectangle(image1, (x, y), (x + w, y + h), (0, 0, 255), 2)
         # Save the region of interest from image1
 
-    cv2.imwrite(f'regions/{index}_hr_colored.png', cv2.cvtColor(image1, cv2.COLOR_RGB2BGR))
+    cv2.imwrite(f'{metric}/{index}_hr_colored.png', cv2.cvtColor(image1, cv2.COLOR_RGB2BGR))
 
     print("done")
-
 
 def calculate_ssim_values(models, dataset):
     ssim_vals = {}
@@ -138,29 +143,62 @@ def calculate_ssim_values(models, dataset):
 
     return ssim_vals
 
+def calculate_fid_values(models, dataset):
+    import model
+    inception_model = model.build_inception_model()
+    ssim_vals = {}
+    # Loop over each model
+    for model_name, model in models:
+        ssim_vals[model_name] = []
+        # Get the output of the model
+        for lr, hr in dataset:
+            fake_hr = model(lr, training=False)
+
+            real_image_resized = preprocess_input_inception(tf.image.resize(hr, (299, 299)))
+            generated_image_resized = preprocess_input_inception(tf.image.resize(fake_hr, (299, 299)))
+
+            hr = hr / 255.0
+            fake_hr = fake_hr / 255.0
+
+
+
+            a= np.squeeze(inception_model(real_image_resized))
+            b= np.squeeze(inception_model(generated_image_resized))
+
+            # Calculate the SSIM for each image in the batch
+            for i in range(hr.shape[0]):  # iterate over the batch size
+                ssim = np.sqrt(np.mean((a - b)**2))
+                ssim_vals[model_name].append(ssim)
+
+    return ssim_vals
+
 
 def get_max_difference_indices(ssim_vals, N):
     # Get the model names
     model_names = list(ssim_vals.keys())
 
     # Compute the absolute difference of SSIM values between the models for each image
-    ssim_differences = np.abs(np.array(ssim_vals[model_names[0]]) - np.array(ssim_vals[model_names[1]]))
+    ssim_differences = np.array(ssim_vals[model_names[0]]) - np.array(ssim_vals[model_names[1]])
 
     # Find the indices of the N images that have the maximum differences in SSIM values
     max_diff_indices = ssim_differences.argsort()[-N:][::-1]
 
     return max_diff_indices.tolist()
 
-def get_n_images_with_most_diffrancess(dataset,models,N):
+def get_n_images_with_most_diffrancess(data_loader : MyDataLoader,models,N : int, metric = "fid"):
+    dataset =  data_loader.validation_dataset
     # Get the number of batches and batch size
-    num_batches = 192469/16
-    batch_size = 16
+    batch_size = data_loader.batch_size
+    num_batches = data_loader.total_val_images/batch_size
+
 
     # Calculate SSIM values
-    ssim_vals = calculate_ssim_values(models, dataset)
-
+    if( metric == "fid"):
+        diff_vals = calculate_fid_values(models, dataset)
+    else:
+        diff_vals = calculate_ssim_values(models, dataset)
     # Get indices of N images with most significant SSIM differences
-    indices = get_max_difference_indices(ssim_vals, N)
+    indices = get_max_difference_indices(diff_vals, N)
 
     # For each index, calculate the batch number and the index within the batch
     for index in indices:
@@ -179,7 +217,7 @@ def get_n_images_with_most_diffrancess(dataset,models,N):
 
 
         # Show the difference between the high-resolution images of the two models
-        show_image_diff(models,lr,hr,index)
+        show_image_diff(models,lr,hr,index,metric)
 
 
 
@@ -192,3 +230,55 @@ def get_n_images_with_most_diffrancess(dataset,models,N):
 
   #tf.keras.utils.plot_model(self.discriminator, show_shapes=True, dpi=64)
   #tf.keras.utils.plot_model(self.discriminator, show_shapes=True, dpi=64)
+
+
+
+def plot_pca_fid(models, dataset):
+    inception_model = model.build_inception_model()
+    fid_vals = {}
+    scaler = StandardScaler()
+    pca = PCA(n_components=2)
+
+    # Loop over the HR images
+    fid_vals["hr"] = []
+    for lr, hr in dataset:
+        hr = hr / 255.0
+        real_image_resized = preprocess_input_inception(tf.image.resize(hr, (299, 299)))
+        fid_vals["hr"].append(np.squeeze(inception_model(real_image_resized)))
+
+    # Compute PCA for the real high-resolution images and store results
+    fid_vals["hr"] = np.concatenate(fid_vals["hr"], axis=0)
+    fid_vals["hr"] = scaler.fit_transform(fid_vals["hr"])  # Add this line
+    pca_hr = pca.fit_transform(fid_vals["hr"])
+
+    plt.figure(figsize=(10, 10))
+    plt.hist2d(pca_hr[:, 0], pca_hr[:, 1], bins=(50, 50), cmap= plt.cm.jet_r, range=[[-50, 50], [-50, 50]],vmin=0, vmax=300, cmin=1)
+    plt.colorbar()
+    plt.xlabel('PCA Component 1')
+    plt.ylabel('PCA Component 2')
+    plt.savefig("plots/hr_histogram.png")
+    plt.close()
+
+    # Loop over each model
+    for model_name, model_instance in models:
+        fid_vals = []
+        # Get the output of the model
+        for lr, hr in dataset:
+            fake_hr = model_instance(lr, training=False)
+            fake_hr = fake_hr / 255.0
+            generated_image_resized = preprocess_input_inception(tf.image.resize(fake_hr, (299, 299)))
+            fid_vals.append(np.squeeze(inception_model(generated_image_resized)))
+
+        # Compute PCA for each model and store results
+        fid_vals = np.concatenate(fid_vals, axis=0)
+        fid_vals = scaler.transform(fid_vals)  # Add this line
+        pca_vals = pca.transform(fid_vals)
+
+        # Plotting
+        plt.figure(figsize=(10, 10))
+        plt.hist2d(pca_vals[:, 0], pca_vals[:, 1], bins=(50, 50), cmap=plt.cm.jet_r, range=[[-50, 50], [-50, 50]],vmin=0, vmax=300, cmin=1)
+        plt.colorbar()
+        plt.xlabel('PCA Component 1')
+        plt.ylabel('PCA Component 2')
+        plt.savefig(f"plots/{model_name}_histogram.png")
+        plt.close()

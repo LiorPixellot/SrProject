@@ -18,8 +18,8 @@ class SrPix2Pix(train.AbsTrainer):
             # get fake images from the generator
             fake_images = self.generator(lr_batch, training=False)
             # get the prediction from the discriminator
-            real_validity = self.discriminator([hr_batch,hr_batch], training=True)
-            fake_validity = self.discriminator([fake_images,hr_batch], training=True)
+            real_validity = self.discriminator(hr_batch, training=True)
+            fake_validity = self.discriminator(fake_images, training=True)
 
             combined_predicted_labels = tf.concat([fake_validity, real_validity], axis=0)
             combined_real_labels = tf.concat([tf.zeros_like(fake_validity), tf.ones_like(real_validity)], axis=0)
@@ -41,7 +41,7 @@ class SrPix2Pix(train.AbsTrainer):
             # get fake images from the generator
             fake_images = self.generator(lr_images,training=True)
             # get the prediction from the discriminator
-            predictions = self.discriminator([fake_images,hr_images], training=False)
+            predictions = self.discriminator(fake_images, training=False)
             # compute the adversarial loss
             bce = tf.keras.losses.BinaryCrossentropy(from_logits=False)
             generative_loss = bce(tf.ones_like(predictions), predictions)
@@ -79,5 +79,5 @@ class SrPix2Pix(train.AbsTrainer):
 
 
     def create_discriminator(self):
-        return model.load_discriminator(self.train_dir /"weights" / "discriminator","patch_gan",self.hr_size)
+        return model.load_discriminator(self.train_dir /"weights" / "discriminator","patch_gan_no_condiation",self.hr_size)
 

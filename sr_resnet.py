@@ -1,7 +1,10 @@
 import train
 import tensorflow as tf
-
+import model
 class   SrResnet(train.AbsTrainer):
+
+    def __init__(self, train_dir, hr_size ,demo_mode=False):
+        super().__init__( train_dir,hr_size, demo_mode)
 
     @tf.function
     def train_step_gen(self, lr_images, hr_images):
@@ -17,3 +20,12 @@ class   SrResnet(train.AbsTrainer):
 
     def train_step_dis(self, lr_batch, hr_batch):
             pass
+
+
+
+    def create_generator(self):
+        return model.load_generator(self.train_dir /"weights" / "generator","resnet_pixel_shuffle")
+
+
+    def create_discriminator(self):
+        return None,None

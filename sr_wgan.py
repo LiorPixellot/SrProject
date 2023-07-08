@@ -18,8 +18,8 @@ from keras.applications.vgg19 import preprocess_input as preprocess_input_vgg
 
 class SrWgan(train.AbsTrainer):
 
-    def __init__(self, generator, discriminator, train_dir, start_epoch=-1, demo_mode=False):
-        super().__init__(generator, discriminator, train_dir, start_epoch, demo_mode)
+    def __init__(self, train_dir, hr_size,demo_mode=False):
+        super().__init__( train_dir,hr_size, demo_mode)
         self.vgg = model.build_vgg()
         self.k_times_train_dis = 5
 
@@ -83,3 +83,11 @@ class SrWgan(train.AbsTrainer):
 
 
 
+
+
+    def create_generator(self):
+        return model.load_generator(self.train_dir /"weights" / "generator","resnet")
+
+
+    def create_discriminator(self):
+        return model.load_discriminator(self.train_dir /"weights" / "discriminator","gan",self.hr_size)

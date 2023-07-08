@@ -10,7 +10,13 @@ from keras.layers import LayerNormalization
 from keras.layers import concatenate
 from keras.applications.inception_v3 import InceptionV3
 
+def pixel_shuffle(scale):
+    return lambda x: tf.nn.depth_to_space(x, scale)
 
+def upsample_pixel_shuffle(x_in, num_filters):
+    x = Conv2D(num_filters, kernel_size=3, padding='same')(x_in)
+    x = Lambda(pixel_shuffle(scale=2))(x)
+    return PReLU(shared_axes=[1, 2])(x)
 
 def upsample(x_in, num_filters):
     x = UpSampling2D(size=(2, 2), interpolation='nearest')(x_in)
@@ -28,7 +34,7 @@ def res_block(x_in, num_filters, momentum=0.8):
     return x
 
 
-def sr_resnet(num_filters=64, num_res_blocks=16):
+def sr_resnet(num_filters=64, num_res_blocks=16,pixel_shuffle = False):
     x_in = Input(shape=(None, None, 3))
     x = Lambda(normalize_01)(x_in)
     x = Conv2D(num_filters, kernel_size=9, padding='same')(x)
@@ -38,8 +44,12 @@ def sr_resnet(num_filters=64, num_res_blocks=16):
     x = Conv2D(num_filters, kernel_size=3, padding='same')(x)
     x = BatchNormalization()(x)
     x = Add()([x_1, x])
-    x = upsample(x, num_filters * 4)
-    x = upsample(x, num_filters * 4)
+    if(pixel_shuffle == True):
+        x = upsample_pixel_shuffle(x, num_filters * 4)
+        x = upsample_pixel_shuffle(x, num_filters * 4)
+    else:
+        x = upsample(x, num_filters * 4)
+        x = upsample(x, num_filters * 4)
     x = Conv2D(3, kernel_size=9, padding='same', activation='tanh')(x)
     x = Lambda(denormalize_m11)(x)
     return Model(x_in, x)
@@ -117,8 +127,9 @@ def load_generator(dir,type = "resnet"):
         model , step =  load_last_weights(dir)
     except Exception as e:
         step = 0
-        if type == "unet":
-            model = unet()
+        if type == "resnet_pixel_shuffle":
+            print("resnet_pixel_shuffle")
+            model = sr_resnet(True)
         else:
             model =  sr_resnet()
     print("starting generator from step " +str(step))
@@ -138,6 +149,7 @@ def load_discriminator(dir,type = "gan",hr_size = 96,num_of_filters= 64):
         else:
             model = discriminator(num_of_filters,hr_size)
     print("starting discriminator from epoch " + str(step))
+    tf.keras.utils.plot_model(model, show_shapes=True, dpi=64)
     return model, step
 
 
@@ -183,8 +195,7 @@ def patch_gan(hr_size=96):
 def patch_gan_layers(initializer, x):
     down1 = downsample(64, 4, False)(x)
     down2 = downsample(128, 4)(down1)
-    down3 = downsample(256, 4)(down2)
-    zero_pad1 = tf.keras.layers.ZeroPadding2D()(down3)
+    zero_pad1 = tf.keras.layers.ZeroPadding2D()(down2)
     conv = tf.keras.layers.Conv2D(512, 4, strides=1,
                                   kernel_initializer=initializer,
                                   use_bias=False)(zero_pad1)

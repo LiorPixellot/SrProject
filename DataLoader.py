@@ -5,7 +5,7 @@ import os
 
 class MyDataLoader:
     def __init__(self, image_dir,demo_mode = False,
-                  hr_size=96, val_split=0.05,downsample_factor=4, batch_size=1):
+                  hr_size=96,batch_size=16, val_split=0.05,downsample_factor=4):
         self.image_dir = image_dir
         self.hr_size = hr_size
         self.downsample_factor = downsample_factor
@@ -43,7 +43,10 @@ class MyDataLoader:
             subset='validation',
             interpolation='bicubic'
         )
-
+        self.total_images = len([f for f in os.listdir(self.image_dir) if os.path.isfile(os.path.join(self.image_dir, f))])
+        self.total_val_images = int(self.total_images * (self.val_split))
+        self.total_train_images = self.total_images - self.total_val_images
+        print("images amount {0} {1} {2}", self.total_images, self.total_train_images,self.total_val_images)
         def generate_image_pairs(hr_image):
             # Resize the image to the HR size
             hr_image= tf.clip_by_value(hr_image, 00, 255.0)
@@ -53,7 +56,6 @@ class MyDataLoader:
             # Create a dictionary of LR and HR images
             image_pair = (lr_image, hr_image)
 
-
             return image_pair
 
         def filter_incomplete_batches(*args):
@@ -61,5 +63,4 @@ class MyDataLoader:
 
         # Create LR and HR datasets for training and validation
         self.train_dataset = train_dataset.filter(filter_incomplete_batches).map(generate_image_pairs)
-
         self.validation_dataset = val_dataset.filter(filter_incomplete_batches).map(generate_image_pairs)
