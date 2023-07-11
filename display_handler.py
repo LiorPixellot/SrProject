@@ -74,7 +74,7 @@ def show_image(title, image):
 def show_image_diff(models,lr,hr,index,metric):
 
     image1 = hr.numpy()
-    image2 = models[0][1](np.expand_dims(lr, axis=0))[0].numpy()
+    image2 = models[1][1](np.expand_dims(lr, axis=0))[0].numpy()
     # convert the images to grayscale
     gray1 = cv2.cvtColor(image1, cv2.COLOR_BGR2GRAY)
     gray2 = cv2.cvtColor(image2, cv2.COLOR_BGR2GRAY)
@@ -173,24 +173,18 @@ def calculate_fid_values(models, dataset):
     return ssim_vals
 
 
-def get_max_difference_indices(ssim_vals, N):
+def get_max_difference_indices(diff_vals, N):
     # Get the model names
-    model_names = list(ssim_vals.keys())
-
+    model_names = list(diff_vals.keys())
     # Compute the absolute difference of SSIM values between the models for each image
-    ssim_differences = np.array(ssim_vals[model_names[0]]) - np.array(ssim_vals[model_names[1]])
-
-    # Find the indices of the N images that have the maximum differences in SSIM values
+    ssim_differences = np.array(diff_vals[model_names[0]]) - np.array(diff_vals[model_names[1]])
+    # Find the indices of the N images that have the maximum differences in diff values
     max_diff_indices = ssim_differences.argsort()[-N:][::-1]
-
     return max_diff_indices.tolist()
 
 def get_n_images_with_most_diffrancess(data_loader : MyDataLoader,models,N : int, metric = "fid"):
     dataset =  data_loader.validation_dataset
-    # Get the number of batches and batch size
     batch_size = data_loader.batch_size
-    num_batches = data_loader.total_val_images/batch_size
-
 
     # Calculate SSIM values
     if( metric == "fid"):
@@ -282,3 +276,6 @@ def plot_pca_fid(models, dataset):
         plt.ylabel('PCA Component 2')
         plt.savefig(f"plots/{model_name}_histogram.png")
         plt.close()
+
+
+
