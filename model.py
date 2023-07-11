@@ -34,7 +34,7 @@ def res_block(x_in, num_filters, momentum=0.8):
     return x
 
 
-def sr_resnet(num_filters=64, num_res_blocks=16,pixel_shuffle = False):
+def sr_resnet(num_filters=64, num_res_blocks=16,pixel_shuffle = False): #TODO add support for double size
     x_in = Input(shape=(None, None, 3))
     x = Lambda(normalize_01)(x_in)
     x = Conv2D(num_filters, kernel_size=9, padding='same')(x)
@@ -149,7 +149,7 @@ def load_discriminator(dir,type = "gan",hr_size = 96,num_of_filters= 64):
         else:
             model = discriminator(num_of_filters,hr_size)
     print("starting discriminator from epoch " + str(step))
-    tf.keras.utils.plot_model(model, show_shapes=True, dpi=64)
+   # tf.keras.utils.plot_model(model, show_shapes=True, dpi=64)
     return model, step
 
 
@@ -195,7 +195,8 @@ def patch_gan(hr_size=96):
 def patch_gan_layers(initializer, x):
     down1 = downsample(64, 4, False)(x)
     down2 = downsample(128, 4)(down1)
-    zero_pad1 = tf.keras.layers.ZeroPadding2D()(down2)
+    down3 = downsample(256, 4)(down2)
+    zero_pad1 = tf.keras.layers.ZeroPadding2D()(down3)
     conv = tf.keras.layers.Conv2D(512, 4, strides=1,
                                   kernel_initializer=initializer,
                                   use_bias=False)(zero_pad1)

@@ -3,12 +3,13 @@ import model
 import tensorflow as tf
 from keras.applications.vgg19 import preprocess_input as preprocess_input_vgg
 
-class SrPix2Pix(train.AbsTrainer):
+class SrPix2PixHr(train.AbsTrainer):
 
-    def __init__(self, train_dir, hr_size,l1_loss_factor ,demo_mode=False):
-        super().__init__( train_dir,hr_size, demo_mode)
+    def __init__(self, train_dir, hr_size,l1_loss_factor ,prev_gen,demo_mode=False):
+        super().__init__( train_dir,hr_size, demo_mode,prev_gen)
         self.vgg = model.build_vgg(hr_size)
         self.l1_loss_factor = l1_loss_factor
+        
 
 
 
@@ -16,7 +17,8 @@ class SrPix2Pix(train.AbsTrainer):
     def train_step_dis(self, lr_batch, hr_batch):
         with tf.GradientTape() as tape:
             # get fake images from the generator
-            fake_images = self.generator(lr_batch, training=False)
+            fake_images_double = self.prev_gen(lr_batch, training=False)
+            fake_images = self.generator(fake_images_double, training=False)
             # get the prediction from the discriminator
             real_validity = self.discriminator(hr_batch, training=True)
             fake_validity = self.discriminator(fake_images, training=True)
@@ -39,7 +41,8 @@ class SrPix2Pix(train.AbsTrainer):
     def train_step_gen(self, lr_images, hr_images):
         with tf.GradientTape() as tape:
             # get fake images from the generator
-            fake_images = self.generator(lr_images,training=True)
+            fake_images_double = self.prev_gen(lr_images,training=False)
+            fake_images = self.generator(fake_images_double,training=True)
             # get the prediction from the discriminator
             predictions = self.discriminator(fake_images, training=False)
             # compute the adversarial loss

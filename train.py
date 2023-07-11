@@ -22,6 +22,7 @@ class AbsTrainer(ABC):
                  train_dir: str,
                  hr_size = 64,
                  demo_mode: bool = False,
+                 prev_gen = None
                  ):
         self.train_dir = pathlib.Path(train_dir)
         self.hr_size = hr_size
@@ -35,6 +36,7 @@ class AbsTrainer(ABC):
         self.add_metrics()
         self.k_times_train_dis = 2
         self.cur_k_val = 0
+        self.prev_gen = prev_gen
 
 
 
@@ -118,8 +120,9 @@ class AbsTrainer(ABC):
         psnr_vals = []
         ssim_vals = []
         for lr, hr in datasets.validation_dataset:
-            # Calculate the size of hr_batch
-            # Resize low-resolution images to the same size as high-resolution images
+        
+            if(self.prev_gen != None):
+                 lr = self.prev_gen(lr, training=False)
             fake_hr = self.generator(lr, training=False)
             real_image_resized = preprocess_input_inception(tf.image.resize(hr, (299, 299)))
             generated_image_resized = preprocess_input_inception(tf.image.resize(fake_hr, (299, 299)))
@@ -191,7 +194,7 @@ class AbsTrainer(ABC):
                 #display_handler.dump_hr_lr_side_by_side(self.train_dir, self.generator, hr_image, lr_image, self.real_step,
                 #                              idx * len(lr_batch) + i)
                 display_handler.dump_hr_lr_images(self.train_dir, self.generator, hr_image, lr_image, self.real_step,
-                                              idx * len(lr_batch) + i)
+                                              idx * len(lr_batch) + i,self.prev_gen)
                 count += 1
                 if count >= num_images:
                     return
