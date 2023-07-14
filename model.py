@@ -46,10 +46,10 @@ def sr_resnet(num_filters=64, num_res_blocks=16,pixel_shuffle = False): #TODO ad
     x = Add()([x_1, x])
     if(pixel_shuffle == True):
         x = upsample_pixel_shuffle(x, num_filters * 4)
-        x = upsample_pixel_shuffle(x, num_filters * 4)
+        #x = upsample_pixel_shuffle(x, num_filters * 4) ## TODO
     else:
         x = upsample(x, num_filters * 4)
-        x = upsample(x, num_filters * 4)
+        #x = upsample(x, num_filters * 4) ##TODO
     x = Conv2D(3, kernel_size=9, padding='same', activation='tanh')(x)
     x = Lambda(denormalize_m11)(x)
     return Model(x_in, x)

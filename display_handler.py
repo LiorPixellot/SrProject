@@ -73,57 +73,13 @@ def show_image(title, image):
 
 def show_image_diff(models,lr,hr,index,metric):
 
-    image1 = hr.numpy()
-    image2 = models[1][1](np.expand_dims(lr, axis=0))[0].numpy()
-    # convert the images to grayscale
-    gray1 = cv2.cvtColor(image1, cv2.COLOR_BGR2GRAY)
-    gray2 = cv2.cvtColor(image2, cv2.COLOR_BGR2GRAY)
-
-    # compute the Structural Similarity Index (SSIM) between the two images
-    (score, diff) = ssim(gray1, gray2, full=True, data_range=255)
-
-    # the diff image contains the actual image differences between the two images
-    # to make the differences visible, we scale the diff image to range [0,255]
-    diff = (diff * 255).astype("uint8")
-
-    # threshold the difference image, followed by finding contours to obtain the regions of the two input images that differ
-    thresh = cv2.threshold(diff, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
-    contours, _ = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    # compute the total difference in each contour and store it with the contour
-    contour_diffs = [(cv2.sumElems(thresh[y:y+h, x:x+w])[0], contour) for contour in contours for x, y, w, h in [cv2.boundingRect(contour)]]
-
-    # sort the contours by total difference, in descending order, and keep the top 1
-    contours = [contour for _, contour in sorted(contour_diffs, key=lambda x: x[0], reverse=True)[:1]]
-
     # Create a directory to save the regions
     if not os.path.exists('regions'):
         os.makedirs('regions')
-    cv2.imwrite(f'{metric}/{index}_hr.png', cv2.cvtColor(image1, cv2.COLOR_RGB2BGR))
     for model_name, model in models:
         cv2.imwrite(f'{metric}/{index}_{model_name}.png',cv2.cvtColor(model(np.expand_dims(lr, axis=0))[0].numpy(), cv2.COLOR_RGB2BGR))
-    # loop over the contours
-    for i, contour in enumerate(contours):
-        # compute the bounding box of the contour and then draw the bounding box on both input images to represent where the two images differ
-        (x, y, w, h) = cv2.boundingRect(contour)
 
-
-        # Save the region of interest from image1
-        hr_region = image1[y:y + h, x:x + w]
-        cv2.imwrite(f'{metric}/{index}_hr_region_{i}.png', cv2.cvtColor(hr_region, cv2.COLOR_RGB2BGR))
-
-        # Save the region of interest from image2
-        for model_name, model in models:
-            region = model(np.expand_dims(lr, axis=0))[0].numpy()[y:y + h, x:x + w]
-            cv2.imwrite(f'{metric}/{index}_{model_name}_region_{i}.png', cv2.cvtColor(region, cv2.COLOR_RGB2BGR))
-
-    for i, contour in enumerate(contours):
-        # compute the bounding box of the contour and then draw the bounding box on both input images to represent where the two images differ
-        (x, y, w, h) = cv2.boundingRect(contour)
-        cv2.rectangle(image1, (x, y), (x + w, y + h), (0, 0, 255), 2)
-        # Save the region of interest from image1
-
-    cv2.imwrite(f'{metric}/{index}_hr_colored.png', cv2.cvtColor(image1, cv2.COLOR_RGB2BGR))
+    cv2.imwrite(f'{metric}/{index}_hr_colored.png', cv2.cvtColor(hr.numpy(), cv2.COLOR_RGB2BGR))
 
     print("done")
 
@@ -238,10 +194,10 @@ def plot_pca_fid(models, dataset):
     for lr, hr in dataset:
         hr = hr / 255.0
         real_image_resized = preprocess_input_inception(tf.image.resize(hr, (299, 299)))
-        fid_vals["hr"].append(np.squeeze(inception_model(real_image_resized)))
+        fid_vals["hr"].append(inception_model(real_image_resized))
 
     # Compute PCA for the real high-resolution images and store results
-    fid_vals["hr"] = np.concatenate(fid_vals["hr"], axis=0)
+    fid_vals["hr"] =  np.vstack(fid_vals["hr"])
     fid_vals["hr"] = scaler.fit_transform(fid_vals["hr"])  # Add this line
     pca_hr = pca.fit_transform(fid_vals["hr"])
 
@@ -261,10 +217,10 @@ def plot_pca_fid(models, dataset):
             fake_hr = model_instance(lr, training=False)
             fake_hr = fake_hr / 255.0
             generated_image_resized = preprocess_input_inception(tf.image.resize(fake_hr, (299, 299)))
-            fid_vals.append(np.squeeze(inception_model(generated_image_resized)))
+            fid_vals.append(inception_model(generated_image_resized))
 
         # Compute PCA for each model and store results
-        fid_vals = np.concatenate(fid_vals, axis=0)
+        fid_vals = np.vstack(fid_vals)
         fid_vals = scaler.transform(fid_vals)  # Add this line
         pca_vals = pca.transform(fid_vals)
 
