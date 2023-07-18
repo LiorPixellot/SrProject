@@ -30,11 +30,7 @@ class SrWPix2PixHr(train.AbsTrainer):
     def train_step_dis(self, lr_batch, hr_batch):
         with tf.GradientTape() as tape:
             # get fake images from the generator
-            if(self.prev_gen == None):
-                fake_images_double = lr_batch
-            else:
-                fake_images_double = self.prev_gen(lr_batch, training=False)
-            fake_images = self.generator(fake_images_double, training=False)
+            fake_images = self.generator(lr_batch, training=False)
             # get the prediction from the discriminator
             real_validity = self.discriminator(hr_batch, training=True)
             fake_validity = self.discriminator(fake_images, training=True)
@@ -61,11 +57,7 @@ class SrWPix2PixHr(train.AbsTrainer):
     def train_step_gen(self, lr_images, hr_images):
         with tf.GradientTape() as tape:
             # get fake images from the generator
-            if(self.prev_gen == None):
-                fake_images_double = lr_images 
-            else:
-                fake_images_double = self.prev_gen(lr_images,training=False)
-            fake_images = self.generator(fake_images_double,training=True)
+            fake_images = self.generator(lr_images,training=True)
             # get the prediction from the discriminator
             predictions = self.discriminator(fake_images, training=False)
             # compute the adversarial loss
@@ -100,7 +92,7 @@ class SrWPix2PixHr(train.AbsTrainer):
 
 
     def create_generator(self):
-        return model.load_generator(self.train_dir /"weights" / "generator","resnet")
+        return model.load_generator(self.train_dir /"weights" / "generator","progressive",self.prev_gen)
 
 
     def create_discriminator(self):

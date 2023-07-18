@@ -10,52 +10,79 @@ from keras.layers import LayerNormalization
 from keras.layers import concatenate
 from keras.applications.inception_v3 import InceptionV3
 
-def pixel_shuffle(scale):
-    return lambda x: tf.nn.depth_to_space(x, scale)
 
-def upsample_pixel_shuffle(x_in, num_filters):
-    x = Conv2D(num_filters, kernel_size=3, padding='same')(x_in)
-    x = Lambda(pixel_shuffle(scale=2))(x)
-    return PReLU(shared_axes=[1, 2])(x)
 
-def upsample(x_in, num_filters):
-    x = UpSampling2D(size=(2, 2), interpolation='nearest')(x_in)
+def upsample(x_in, num_filters,model_name = ""):
+    x = UpSampling2D(size=(2, 2), interpolation='nearest',name=model_name+"UpSampling2D")(x_in)
     x = Conv2D(num_filters, kernel_size=3, padding='same')(x)
-    return PReLU(shared_axes=[1, 2])(x)
+    return PReLU(shared_axes=[1, 2], name=model_name+'prelu_up')(x)
 
 
-def res_block(x_in, num_filters, momentum=0.8):
+
+def res_block(x_in, num_filters,block_num,model_name = "", momentum=0.8):
     x = Conv2D(num_filters, kernel_size=3, padding='same')(x_in)
     x = BatchNormalization(momentum=momentum)(x)
-    x = PReLU(shared_axes=[1, 2])(x)
+    x = PReLU(shared_axes=[1, 2], name=f'{model_name}PReLU_layer_resblock_{block_num}')(x)
     x = Conv2D(num_filters, kernel_size=3, padding='same')(x)
     x = BatchNormalization(momentum=momentum)(x)
-    x = Add()([x_in, x])
+    x = Add(name=f'{model_name}add_layer_resblock_{block_num}')([x_in, x])
     return x
 
 
-def sr_resnet(num_filters=64, num_res_blocks=16,pixel_shuffle = False): #TODO add support for double size
+def sr_resnet(num_filters=64, num_res_blocks=16):
     x_in = Input(shape=(None, None, 3))
     x = Lambda(normalize_01)(x_in)
     x = Conv2D(num_filters, kernel_size=9, padding='same')(x)
     x = x_1 = PReLU(shared_axes=[1, 2])(x)
-    for _ in range(num_res_blocks):
-        x = res_block(x, num_filters)
+    for i in range(num_res_blocks):
+        x = res_block(x, num_filters,i)
     x = Conv2D(num_filters, kernel_size=3, padding='same')(x)
     x = BatchNormalization()(x)
-    x = Add()([x_1, x])
-    if(pixel_shuffle == True):
-        x = upsample_pixel_shuffle(x, num_filters * 4)
-        #x = upsample_pixel_shuffle(x, num_filters * 4) ## TODO
-    else:
-        x = upsample(x, num_filters * 4)
-        #x = upsample(x, num_filters * 4) ##TODO
+    x = Add(name='add_layer')([x_1, x])
+    x = upsample(x, num_filters * 4,"first")
+    x = upsample(x, num_filters * 4,"second")
     x = Conv2D(3, kernel_size=9, padding='same', activation='tanh')(x)
     x = Lambda(denormalize_m11)(x)
     return Model(x_in, x)
 
+def progressive_sr_resnet(low_res_model=None, num_filters=64, num_res_blocks=16):
 
+    """
+    Creates a new super-resolution ResNet model which incorporates the layers of a lower resolution model (if provided).
+    The layers of the low resolution model are set to non-trainable.
+    The new layers are initialized but not trained.
+    """
+    name = ""
+    # Start with the layers from the low resolution model, if provided
+    if low_res_model is not None:
+        name = "sec"
+        # Set the layers of the low resolution model to non-trainable
+        for layer in low_res_model.layers:
+            layer.trainable = False
 
+        x_in = low_res_model.input
+        x = low_res_model.output
+    else:
+        name = "first"
+        x_in = Input(shape=(None, None, 3))
+        x = x_in
+    x = Lambda(normalize_01, name=name+'normalize_layer')(x)
+
+    # Add the new layers for the higher resolution
+    x = Conv2D(num_filters, kernel_size=9, padding='same')(x)
+    x = x_1 = PReLU(shared_axes=[1, 2], name=name+'prelu')(x)
+
+    for i in range(num_res_blocks):
+        x = res_block(x, num_filters,i,name)
+
+    x = Conv2D(num_filters, kernel_size=3, padding='same')(x)
+    x = BatchNormalization()(x)
+    x = Add(name=name+'add')([x_1, x])  # added name here
+    x = upsample(x, num_filters * 4,name)
+    x = Conv2D(3, kernel_size=9, padding='same', activation='tanh')(x)
+    x = Lambda(denormalize_m11, name=name+'denormalize_layer')(x)
+
+    return Model(x_in, x)
 
 def discriminator_block(x_in, num_filters, strides=1, batchnorm=True, momentum=0.8):
     x = Conv2D(num_filters, kernel_size=3, strides=strides, padding='same')(x_in)
@@ -120,16 +147,15 @@ def load_last_weights(dir_path):
 
 
 
-def load_generator(dir,type = "resnet"):
+def load_generator(dir,type = "resnet",prev_model = None):
     print(dir)
     model = None
     try:
         model , step =  load_last_weights(dir)
     except Exception as e:
         step = 0
-        if type == "resnet_pixel_shuffle":
-            print("resnet_pixel_shuffle")
-            model = sr_resnet(True)
+        if type == "progressive":
+            model =  progressive_sr_resnet(prev_model)
         else:
             model =  sr_resnet()
     print("starting generator from step " +str(step))
@@ -227,102 +253,3 @@ def denormalize_m11(x):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def upsample_pix(filters, size, apply_dropout=False):
-  initializer = tf.random_normal_initializer(0., 0.02)
-
-  result = tf.keras.Sequential()
-  result.add(
-    tf.keras.layers.Conv2DTranspose(filters, size, strides=2,
-                                    padding='same',
-                                    kernel_initializer=initializer,
-                                    use_bias=False))
-
-  result.add(tf.keras.layers.BatchNormalization())
-
-  if apply_dropout:
-      result.add(tf.keras.layers.Dropout(0.5))
-
-  result.add(tf.keras.layers.ReLU())
-
-  return result
-
-
-
-def unet():
-  inputs = tf.keras.layers.Input(shape=[256, 256, 3])
-
-  down_stack = [
-    downsample(64, 4, apply_batchnorm=False),  # (batch_size, 128, 128, 64)
-    downsample(128, 4),  # (batch_size, 64, 64, 128)
-    downsample(256, 4),  # (batch_size, 32, 32, 256)
-    downsample(512, 4),  # (batch_size, 16, 16, 512)
-    downsample(512, 4),  # (batch_size, 8, 8, 512)
-    downsample(512, 4),  # (batch_size, 4, 4, 512)
-    downsample(512, 4),  # (batch_size, 2, 2, 512)
-    downsample(512, 4),  # (batch_size, 1, 1, 512)
-  ]
-
-  up_stack = [
-    upsample_pix(512, 4, apply_dropout=True),  # (batch_size, 2, 2, 1024)
-    upsample_pix(512, 4, apply_dropout=True),  # (batch_size, 4, 4, 1024)
-    upsample_pix(512, 4, apply_dropout=True),  # (batch_size, 8, 8, 1024)
-    upsample_pix(512, 4),  # (batch_size, 16, 16, 1024)
-    upsample_pix(256, 4),  # (batch_size, 32, 32, 512)
-    upsample_pix(128, 4),  # (batch_size, 64, 64, 256)
-    upsample_pix(64, 4),  # (batch_size, 128, 128, 128)
-  ]
-
-  initializer = tf.random_normal_initializer(0., 0.02)
-  last = tf.keras.layers.Conv2DTranspose(3, 4,
-                                         strides=2,
-                                         padding='same',
-                                         kernel_initializer=initializer,
-                                         activation='tanh')  # (batch_size, 256, 256, 3)
-
-  x = inputs
-
-  # Downsampling through the model
-  skips = []
-  for down in down_stack:
-    x = down(x)
-    skips.append(x)
-
-  skips = reversed(skips[:-1])
-
-  # Upsampling and establishing the skip connections
-  for up, skip in zip(up_stack, skips):
-    x = up(x)
-    x = tf.keras.layers.Concatenate()([x, skip])
-
-  x = last(x)
-
-  return tf.keras.Model(inputs=inputs, outputs=x)

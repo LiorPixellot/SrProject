@@ -18,34 +18,10 @@ import numpy as np
 import tensorflow as tf
 from sklearn.preprocessing import StandardScaler
 from DataLoader import MyDataLoader
+import itertools
 
 import  model
-def dump_hr_lr_side_by_side(data_dir, generator, hr, lr, step, image_num):
-    fig = plt.figure(figsize=(15, 5))
 
-    gs = gridspec.GridSpec(1, 3, width_ratios=[4, 1, 4])  # Define the width ratio of the subplots
-
-    ax0 = plt.subplot(gs[0])
-    ax0.imshow(tf.cast(hr, tf.uint8))
-    ax0.set_title('HR Image')
-    ax0.axis('off')
-
-    ax1 = plt.subplot(gs[1])
-    ax1.imshow(tf.cast(lr, tf.uint8))
-    ax1.set_title('LR Image')
-    ax1.axis('off')
-
-    ax2 = plt.subplot(gs[2])
-    ax2.imshow(tf.cast(tf.squeeze(generator(tf.expand_dims(lr, 0)), axis=0), tf.uint8))
-    ax2.set_title('gen Image')
-    ax2.axis('off')
-
-    # Adjust the space between subplots
-    fig.subplots_adjust(wspace=0.05, hspace=0.05)
-
-    template = '{}/images/image_num_{}_step_{}.png'
-    plt.savefig(template.format(data_dir, image_num, step))
-    plt.close()
 
 def save_image(img, path):
     """Save a tensor image to a file."""
@@ -73,15 +49,11 @@ def show_image(title, image):
 
 def show_image_diff(models,lr,hr,index,metric):
 
-    # Create a directory to save the regions
-    if not os.path.exists('regions'):
-        os.makedirs('regions')
     for model_name, model in models:
-        cv2.imwrite(f'{metric}/{index}_{model_name}.png',cv2.cvtColor(model(np.expand_dims(lr, axis=0))[0].numpy(), cv2.COLOR_RGB2BGR))
+        cv2.imwrite(f'demo/{metric}/{index}_{model_name}.png',cv2.cvtColor(model(np.expand_dims(lr, axis=0))[0].numpy(), cv2.COLOR_RGB2BGR))
 
-    cv2.imwrite(f'{metric}/{index}_hr_colored.png', cv2.cvtColor(hr.numpy(), cv2.COLOR_RGB2BGR))
+    cv2.imwrite(f'demo/{metric}/{index}_hr_colored.png', cv2.cvtColor(hr.numpy(), cv2.COLOR_RGB2BGR))
 
-    print("done")
 
 def calculate_ssim_values(models, dataset):
     ssim_vals = {}
@@ -99,34 +71,50 @@ def calculate_ssim_values(models, dataset):
 
     return ssim_vals
 
+
+
+
+
+def save_display_examples(train_dir, generator, test_dataset, real_step =0, num_images = 30):
+    count = 0
+    for idx, (lr_batch, hr_batch) in enumerate(test_dataset):
+        for i in range(len(lr_batch)):
+            lr_image = lr_batch[i]
+            hr_image = hr_batch[i]
+            dump_hr_lr_images(train_dir, generator, hr_image, lr_image, real_step,
+                                                  idx * len(lr_batch) + i)
+            count += 1
+            if count >= num_images:
+               return
+
 def calculate_fid_values(models, dataset):
     import model
     inception_model = model.build_inception_model()
-    ssim_vals = {}
+    vals = {}
+
     # Loop over each model
     for model_name, model in models:
-        ssim_vals[model_name] = []
+
+        vals[model_name] = []
+
         # Get the output of the model
-        for lr, hr in dataset:
-            fake_hr = model(lr, training=False)
+        for lr_batch, hr_batch in dataset:
 
-            real_image_resized = preprocess_input_inception(tf.image.resize(hr, (299, 299)))
-            generated_image_resized = preprocess_input_inception(tf.image.resize(fake_hr, (299, 299)))
+            fake_hr_batch = model(lr_batch, training=False)
+            real_image_resized_batch = preprocess_input_inception(tf.image.resize(hr_batch, (299, 299)))
+            generated_image_resized_batch = preprocess_input_inception(tf.image.resize(fake_hr_batch, (299, 299)))
 
-            hr = hr / 255.0
-            fake_hr = fake_hr / 255.0
-
-
-
-            a= np.squeeze(inception_model(real_image_resized))
-            b= np.squeeze(inception_model(generated_image_resized))
+            a_batch = np.squeeze(inception_model(real_image_resized_batch))
+            b_batch = np.squeeze(inception_model(generated_image_resized_batch))
 
             # Calculate the SSIM for each image in the batch
-            for i in range(hr.shape[0]):  # iterate over the batch size
+            for i in range(hr_batch.shape[0]):  # iterate over the batch size
+                a = a_batch[i]
+                b = b_batch[i]
                 ssim = np.sqrt(np.mean((a - b)**2))
-                ssim_vals[model_name].append(ssim)
+                vals[model_name].append(ssim)
 
-    return ssim_vals
+    return vals
 
 
 def get_max_difference_indices(diff_vals, N):
@@ -137,37 +125,26 @@ def get_max_difference_indices(diff_vals, N):
     # Find the indices of the N images that have the maximum differences in diff values
     max_diff_indices = ssim_differences.argsort()[-N:][::-1]
     return max_diff_indices.tolist()
+import itertools
 
-def get_n_images_with_most_diffrancess(data_loader : MyDataLoader,models,N : int, metric = "fid"):
-    dataset =  data_loader.validation_dataset
-    batch_size = data_loader.batch_size
+def get_n_images_with_most_differences(data_loader : MyDataLoader, models, N : int, metric = "fid"):
+    dataset = data_loader.validation_dataset
 
     # Calculate SSIM values
-    if( metric == "fid"):
+    if metric == "fid":
         diff_vals = calculate_fid_values(models, dataset)
     else:
         diff_vals = calculate_ssim_values(models, dataset)
     # Get indices of N images with most significant SSIM differences
     indices = get_max_difference_indices(diff_vals, N)
 
-    # For each index, calculate the batch number and the index within the batch
+    dataset = data_loader.validation_dataset.unbatch()  # Flatten the dataset
+    # For each index, fetch the image at the corresponding position
     for index in indices:
-        batch_num = index // batch_size
-        within_batch_index = index % batch_size
-
-
-        hr = None
-        lr = None
-        for lr_batch,hr_batch in dataset.take(batch_num + 1):
-            if batch_num == 0:
-                lr = lr_batch[within_batch_index]
-                hr = hr_batch[within_batch_index]
-            else:
-                batch_num -= 1
-
+        lr, hr = next(itertools.islice(dataset, index, index + 1))
 
         # Show the difference between the high-resolution images of the two models
-        show_image_diff(models,lr,hr,index,metric)
+        show_image_diff(models, lr, hr, index, metric)
 
 
 
@@ -206,7 +183,7 @@ def plot_pca_fid(models, dataset):
     plt.colorbar()
     plt.xlabel('PCA Component 1')
     plt.ylabel('PCA Component 2')
-    plt.savefig("plots/hr_histogram.png")
+    plt.savefig("demo/plots/hr_histogram.png")
     plt.close()
 
     # Loop over each model
@@ -230,7 +207,7 @@ def plot_pca_fid(models, dataset):
         plt.colorbar()
         plt.xlabel('PCA Component 1')
         plt.ylabel('PCA Component 2')
-        plt.savefig(f"plots/{model_name}_histogram.png")
+        plt.savefig(f"demo/plots/{model_name}_histogram.png")
         plt.close()
 
 

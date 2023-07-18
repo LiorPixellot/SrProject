@@ -24,6 +24,7 @@ class AbsTrainer(ABC):
                  demo_mode: bool = False,
                  prev_gen = None
                  ):
+        self.prev_gen = prev_gen
         self.train_dir = pathlib.Path(train_dir)
         self.hr_size = hr_size
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4, beta_1=0.5,beta_2=0.9)
@@ -36,7 +37,7 @@ class AbsTrainer(ABC):
         self.add_metrics()
         self.k_times_train_dis = 2
         self.cur_k_val = 0
-        self.prev_gen = prev_gen
+     
 
 
 
@@ -92,7 +93,7 @@ class AbsTrainer(ABC):
         if (modulo <= 0 and  self.real_step  > self.start_step):
             print("save_progress")
             self.save_weights()
-            self.save_display_examples(datasets.validation_dataset)
+            display_handler.save_display_examples(self.train_dir, self.generator,datasets.validation_dataset,self.real_step)
 
         modulo = self.real_step % self._settings['steps_to_eval']
         print(modulo)
@@ -121,8 +122,7 @@ class AbsTrainer(ABC):
         ssim_vals = []
         for lr, hr in datasets.validation_dataset:
         
-            if(self.prev_gen != None):
-                 lr = self.prev_gen(lr, training=False)
+
             fake_hr = self.generator(lr, training=False)
             real_image_resized = preprocess_input_inception(tf.image.resize(hr, (299, 299)))
             generated_image_resized = preprocess_input_inception(tf.image.resize(fake_hr, (299, 299)))
@@ -145,12 +145,6 @@ class AbsTrainer(ABC):
              mu1, sigma1 = np.mean(concatenated_real_features, axis=0), np.cov(concatenated_real_features, rowvar=False)
              mu2, sigma2 = np.mean(concatenated_gen_features, axis=0), np.cov(concatenated_gen_features, rowvar=False)
 
-        print("sigma1 shape:", sigma1.shape)
-        print("sigma1 type:", type(sigma1))
-        print("sigma2 shape:", sigma2.shape)
-        print("sigma2 type:", type(sigma2))
-        print("Dot product shape:", np.dot(sigma1, sigma2).shape)
-        print("Dot product type:", type(np.dot(sigma1, sigma2)))
         
         ssdiff = np.sum((mu1 - mu2) ** 2.0)
         covmean = sqrtm(np.dot(sigma1, sigma2))
@@ -185,19 +179,7 @@ class AbsTrainer(ABC):
             print("train gen")
             self.train_step_gen(lr_batch, hr_batch)
 
-    def save_display_examples(self, test_dataset, num_images = 30):
-        count = 0
-        for idx, (lr_batch, hr_batch) in enumerate(test_dataset):
-            for i in range(len(lr_batch)):  # Assuming lr_batch and hr_batch have the same number of images
-                lr_image = lr_batch[i]
-                hr_image = hr_batch[i]
-                #display_handler.dump_hr_lr_side_by_side(self.train_dir, self.generator, hr_image, lr_image, self.real_step,
-                #                              idx * len(lr_batch) + i)
-                display_handler.dump_hr_lr_images(self.train_dir, self.generator, hr_image, lr_image, self.real_step,
-                                              idx * len(lr_batch) + i,self.prev_gen)
-                count += 1
-                if count >= num_images:
-                    return
+
 
     @abstractmethod
     def train_step_dis(self, hr_batch, lr_batch):
