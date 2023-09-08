@@ -1,19 +1,11 @@
 import pathlib
 from abc import ABC, abstractmethod
-from typing import Tuple
-
 import numpy as np
 import tensorflow as tf
-from matplotlib import pyplot as plt
-from tqdm import tqdm
-from keras.applications.inception_v3 import InceptionV3
 from keras.applications.inception_v3 import preprocess_input as preprocess_input_inception
 import display_handler
 import model
-from numpy import cov
-from numpy import trace
 from scipy.linalg import sqrtm
-from numpy import iscomplexobj
 import time
 
 
@@ -51,8 +43,6 @@ class AbsTrainer(ABC):
     def creat_run_dirs(self):
         self.images_path = self.train_dir / "images"
         self.images_path.mkdir(parents=True, exist_ok=True)
-
-
 
     def _get_settings_according_to_mode(self, demo_mode: bool) -> dict:
         demo_settings = {'steps_to_save_progress': 1,
@@ -154,7 +144,6 @@ class AbsTrainer(ABC):
         fid = ssdiff + np.trace(sigma1 + sigma2 - 2.0 * covmean)
 
         print("PSNR",np.mean(psnr_vals))
-        print("sigma1 shape:", fid)
         print("SSIM:", np.mean(ssim_vals))
         with self.log_writer.as_default():
             tf.summary.scalar("PSNR",np.mean(psnr_vals),step=self.real_step)

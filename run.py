@@ -1,19 +1,15 @@
 import display_handler
-import train
 from sr_resnet import SrResnet
 from sr_gan import SrGan
 from sr_wgan_gp import SrWganGp
 from sr_wgan import SrWgan
 import DataLoader
-import model
-from pathlib import Path
-from sr_cgan import  SrCGan
 from srPix2Pix import SrPix2Pix
 from pix2pix import pix2pix
-from cameraDemo import cameraDemo
 from srWPix2PixHr import SrWPix2PixHr
-# Define deo_mode as a global variable
-demo_mode = False
+
+
+demo_mode = True
 hr_size=96
 
 

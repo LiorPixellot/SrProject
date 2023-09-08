@@ -1,27 +1,14 @@
-import matplotlib.pyplot as plt
-import numpy as np
-import tensorflow as tf
 from PIL import Image
-import cv2
-from pathlib import Path
-from typing import List
-import matplotlib.gridspec as gridspec
-import os
 from keras.applications.inception_v3 import preprocess_input as preprocess_input_inception
 import cv2
-import numpy as np
-from skimage.metrics import structural_similarity as ssim
-import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 from sklearn.preprocessing import StandardScaler
 from DataLoader import MyDataLoader
-import itertools
-
 import  model
-
+import itertools
 
 def save_image(img, path):
     """Save a tensor image to a file."""
@@ -34,10 +21,6 @@ def dump_hr_lr_images(data_dir, generator, hr, lr, step, image_num):
     hr_path = f"{data_dir}/images/image_num_{image_num}_step_{step}_hr.png"
     lr_path = f"{data_dir}/images/image_num_{image_num}_step_{step}_lr.png"
     gen_path = f"{data_dir}/images/image_num_{image_num}_step_{step}_gen.png"
-
-    # Calculate the size of hr_batch
-    # Resize low-resolution images to the same size as high-resolution images
-    # Save the images
     save_image(hr, hr_path)
     save_image(lr, lr_path)
     save_image(tf.squeeze(generator(tf.expand_dims(lr, 0)), axis=0), gen_path)
@@ -48,10 +31,8 @@ def show_image(title, image):
     plt.show()
 
 def show_image_diff(models,lr,hr,index,metric):
-
     for model_name, model in models:
         cv2.imwrite(f'demo/{metric}/{index}_{model_name}.png',cv2.cvtColor(model(np.expand_dims(lr, axis=0))[0].numpy(), cv2.COLOR_RGB2BGR))
-
     cv2.imwrite(f'demo/{metric}/{index}_hr_colored.png', cv2.cvtColor(hr.numpy(), cv2.COLOR_RGB2BGR))
 
 
@@ -107,12 +88,12 @@ def calculate_fid_values(models, dataset):
             a_batch = np.squeeze(inception_model(real_image_resized_batch))
             b_batch = np.squeeze(inception_model(generated_image_resized_batch))
 
-            # Calculate the SSIM for each image in the batch
+            # Calculate the MSE for each image in the batch
             for i in range(hr_batch.shape[0]):  # iterate over the batch size
                 a = a_batch[i]
                 b = b_batch[i]
-                ssim = np.sqrt(np.mean((a - b)**2))
-                vals[model_name].append(ssim)
+                mse = np.sqrt(np.mean((a - b)**2))
+                vals[model_name].append(mse)
 
     return vals
 
@@ -120,12 +101,12 @@ def calculate_fid_values(models, dataset):
 def get_max_difference_indices(diff_vals, N):
     # Get the model names
     model_names = list(diff_vals.keys())
-    # Compute the absolute difference of SSIM values between the models for each image
+    # Compute the difference of values between the models for each image
     ssim_differences = np.array(diff_vals[model_names[0]]) - np.array(diff_vals[model_names[1]])
     # Find the indices of the N images that have the maximum differences in diff values
     max_diff_indices = ssim_differences.argsort()[-N:][::-1]
     return max_diff_indices.tolist()
-import itertools
+
 
 def get_n_images_with_most_differences(data_loader : MyDataLoader, models, N : int, metric = "fid"):
     dataset = data_loader.validation_dataset
@@ -152,11 +133,6 @@ def get_n_images_with_most_differences(data_loader : MyDataLoader, models, N : i
 
 
 
-
-
-
-  #tf.keras.utils.plot_model(self.discriminator, show_shapes=True, dpi=64)
-  #tf.keras.utils.plot_model(self.discriminator, show_shapes=True, dpi=64)
 
 
 
@@ -212,3 +188,5 @@ def plot_pca_fid(models, dataset):
 
 
 
+  #tf.keras.utils.plot_model(self.discriminator, show_shapes=True, dpi=64)
+  #tf.keras.utils.plot_model(self.discriminator, show_shapes=True, dpi=64)
